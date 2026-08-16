@@ -31,22 +31,10 @@ gate-tree: test/checks/gate_tree_test.dart
 # Every package the gate walks is analysed, formatted and tested, and a package that fails any of
 # the three makes the whole gate answer non-zero.
 package-gate: test/checks/package_gate_test.dart
+# Everything the binary is composed from answered from one place — all working checkouts or all
+# pushed commits, and the gate logs which. A mix, half from the working tree and half from what was
+# pushed with nothing saying which half is which, is refused naming both halves.
+resolved-packages: test/checks/resolved_packages_test.dart
 # The one Dart version the checks are true against is enforced by reading this process's own
 # version, and every other is refused with both numbers in the refusal.
 version-guard: test/checks/version_guard_test.dart
-
-# NOT DECLARED, AND NOT ON DISK: resolved-packages.
-#
-# tool/gate/resolved_packages.dart still RUNS — tool/gate/package_gate.dart imports it — and in this
-# repository it measures nothing, because it asks which package of this repository answered another
-# package of this repository, and there is only one. Its own test refuses to pass on that rather
-# than going quietly green, which is the check working.
-#
-# The risk it was built for did not go away in the move; it grew. This repository names seven
-# packages of two OTHER repositories by a git ref, and a gitignored override file re-points all
-# seven at working checkouts. A composition where SOME are overridden and some are not builds the
-# binary half from the working tree and half from what was pushed, with nothing saying which.
-#
-# Repointing it at that question is simetrixch/ansiwise-plugins#120. The line comes back here when
-# it is done. It stands written out because a check that quietly stops covering its subject is worse
-# than no check: it is read as a guarantee.

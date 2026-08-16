@@ -4,10 +4,12 @@
 /// lets a test drive the whole sequence and read the verdict without `dart` being involved.
 ///
 /// Each package is resolved, then what each of them resolved a package of this repository TO is
-/// read and refused where it is not this repository's own checkout, then the analyzer and the
-/// formatter are asked about the whole tree at once, then each suite runs. A package whose
-/// resolution failed is not analysed and not tested — there is nothing true to say about it until
-/// its dependencies are there, and the analyzer would answer with one error per import.
+/// read and refused where it is not this repository's own checkout, then what each package is
+/// COMPOSED from is read — every git-named package from working checkouts or every one from pushed
+/// commits, with a mix refused and the uniform answer logged — then the analyzer and the formatter
+/// are asked about the whole tree at once, then each suite runs. A package whose resolution failed
+/// is not analysed and not tested — there is nothing true to say about it until its dependencies
+/// are there, and the analyzer would answer with one error per import.
 ///
 /// EVERY PACKAGE AND EVERY STEP RUNS EVEN AFTER AN EARLIER ONE WENT RED. One failure hiding the rest
 /// is how the next run finds a second problem that was there all along.
@@ -121,6 +123,44 @@ final class PackageGate {
         log.note('  $refusal');
       }
       failures.add('resolution');
+    }
+
+    // WHAT THE BINARY WOULD BE COMPOSED FROM. The git-named packages may be re-pointed at working
+    // checkouts by a gitignored override file, so the same commit resolves to two different
+    // binaries — one from the working trees, one from pushed commits — and both are legitimate.
+    // The log says which one this resolution is. A MIX of the two is refused: such a binary is
+    // built half from the working tree and half from what was pushed, and nothing in it would say
+    // which half is which. `dart compile` reads the same package config, so the answer holds for a
+    // binary built from this checkout without a resolution in between.
+    log.heading('composition');
+    for (final DartPackage package in resolved) {
+      final File manifest = File('${package.directory}/pubspec.yaml');
+      final List<String> members = manifest.existsSync()
+          ? gitNamedDependencies(manifest.readAsStringSync())
+          : const <String>[];
+      final File config = File('${package.directory}/.dart_tool/package_config.json');
+      final List<ComposedPackage> composition = config.existsSync()
+          ? compositionOf(
+              packageConfigText: config.readAsStringSync(),
+              configDirectory: '${package.directory}/.dart_tool/',
+              members: members,
+            )
+          : const <ComposedPackage>[];
+      for (final ComposedPackage composed in composition) {
+        log.note(
+          '  ${composed.name} answered from ${composed.root} '
+          '(${composed.fromCache ? 'pushed commit' : 'working checkout'})',
+        );
+      }
+      final List<String> refusals = compositionRefusals(composition: composition, members: members);
+      if (refusals.isNotEmpty) {
+        for (final String refusal in refusals) {
+          log.note(refusal);
+        }
+        failures.add('composition');
+      } else {
+        log.note('  ${package.name} — ${compositionLine(composition)}');
+      }
     }
 
     log.heading('dart run $analysisScript');

@@ -24,11 +24,12 @@
 /// (overridden in .\pubspec_overrides.yaml)` — which [PackageGate] logs. Deriving that a second time
 /// here would be a second answer that can disagree with the file which actually decides.
 ///
-/// WHICH COPY OF THE PACKAGES OF THIS REPOSITORY ANSWERED IS DECIDED HERE, AND IT IS A REFUSAL.
-/// The product names its five tool packages by a git ref and the override file is gitignored, so
-/// without it the composition comes out of a commit while each of those packages' own checks walk
-/// the working tree beside it — green across a split. tool/gate/resolved_packages.dart reads what
-/// really answered and refuses that.
+/// WHAT THE BINARY IS COMPOSED FROM IS DECIDED HERE, AND A MIX IS A REFUSAL. This package names
+/// the framework and plugin packages of other repositories by a git ref, and a gitignored
+/// pubspec_overrides.yaml re-points them at working checkouts beside this one. Either composition
+/// is a legitimate binary and the gate logs which one this resolution is; a composition built half
+/// from the working tree and half from pushed commits is refused, because nothing in such a binary
+/// says which half is which. tool/gate/resolved_packages.dart reads what really answered.
 ///
 /// THIS FILE IMPORTS NOTHING BUT `dart:`, AND EVERYTHING UNDER tool/gate/ THAT IT REACHES DOES THE
 /// SAME. The gate is what resolves the tree — `dart pub get` is its first step — so it has to be

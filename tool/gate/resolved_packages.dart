@@ -1,25 +1,31 @@
-/// Which copy of each package of this repository the checks were actually answered against.
+/// Where each package this binary is composed from actually answered, and whether it is one place.
 ///
-/// THE DEFECT THIS EXISTS FOR. The product plugin names the five tool packages by a git ref, and
-/// both the override file and the lock file are gitignored. Without the untracked override the
-/// composition is resolved OUT OF A COMMIT, while each tool package's own checks walk the working
-/// tree beside it — so one half of the gate judges the bytes on disk, the other half judges bytes
-/// from a commit, and the verdict is green across the split. Only a path-level disagreement is
-/// loud: a step whose body changed and whose name did not produces no output at all.
+/// THE DEFECT THIS EXISTS FOR. This repository names the framework and plugin packages of other
+/// repositories by a git ref, and a gitignored `pubspec_overrides.yaml` re-points them at working
+/// checkouts beside this one. The same commit therefore resolves to two different binaries — one
+/// built from the working trees, one from what was pushed — and both are legitimate. What is not
+/// legitimate is the third state: SOME packages overridden and some not, so the binary is built
+/// half from the working tree and half from pushed commits, with nothing saying which half is
+/// which. A green check over such a composition is green about no binary anybody can name.
 ///
-/// WHY REFUSING RATHER THAN NAMING THE REVISION. The other way out is to print which revision of
-/// each package was measured, and it does not close this. The working tree HAS no revision — it is
-/// a commit plus whatever is uncommitted, which is the whole reason somebody is running the gate —
-/// so a verdict naming a commit for one half and "the working tree" for the other would state the
-/// split accurately and let it stand. What the gate is asked is whether this tree is finishable,
-/// and it cannot answer that about a composition built from something other than this tree. So a
-/// package of this repository that resolved anywhere but to its checkout in this repository is a
-/// refusal, and the log names, for every package, where each of them came from.
+/// WHY REFUSING THE MIX RATHER THAN DESCRIBING IT. Naming a commit for one half and "the working
+/// tree" for the other would state the split accurately and let it stand. The working tree has no
+/// revision — it is a commit plus whatever is uncommitted, which is the whole reason somebody is
+/// running the gate — so nothing true can be recorded about a binary built from both at once.
+/// Either uniform composition passes, and the log says which one it was.
 ///
-/// HOW IT IS READ. `dart pub get` writes `.dart_tool/package_config.json` beside the package, and
-/// every entry of it carries a `rootUri` relative to that file. Whatever answered — a path
-/// override, a git ref, the pub cache — the resolved directory is in there, which makes this the
-/// one place that says what was really compiled rather than what a manifest asked for.
+/// HOW IT IS READ. `dart pub get` writes `.dart_tool/package_config.json` beside the package. Every
+/// entry carries a `rootUri` relative to that file, and the file's own `pubCache` value names the
+/// cache. A composed package whose resolved directory lies under the cache answered from a pushed
+/// commit; one outside it answered from a working checkout. The composed packages are the ones the
+/// manifest names with a git source PLUS every entry that answered from a working checkout or from
+/// the cache's git area — the second group catches a package that a git-named dependency itself
+/// names by git, which no manifest of this repository declares. Hosted pub.dev dependencies stay
+/// under the cache by design and are not judged.
+///
+/// THE INTRA-REPOSITORY QUESTION STAYS. [inRepositoryResolutionOf] and [splitResolutions] ask which
+/// package OF ONE REPOSITORY answered another package of it. With one package here they measure
+/// nothing, and they start measuring again the day a second package arrives.
 ///
 /// It imports nothing but `dart:`, like everything else the gate reaches before `dart pub get`.
 library;
@@ -116,6 +122,187 @@ List<String> splitResolutions({
               'checks of ${resolved.name} judge $checkout — two different copies, so a green '
               'verdict is green about neither',
   ];
+}
+
+/// One package this binary is composed from, and which side answered it.
+final class ComposedPackage {
+  /// Records that [name] answered from the directory [root].
+  const ComposedPackage({required this.name, required this.root, required this.fromCache});
+
+  /// The package, as an import says it after `package:`.
+  final String name;
+
+  /// The directory it answered from, with forward slashes.
+  final String root;
+
+  /// True when [root] lies under the pub cache — a pushed commit — and false when it is a working
+  /// checkout outside it.
+  final bool fromCache;
+
+  @override
+  String toString() => '$name from $root';
+}
+
+/// The dependency names [pubspecText] declares with a `git:` source, in both dependency blocks.
+///
+/// Dev dependencies count: the audits judging working-tree code while they themselves resolved
+/// from a commit is the same split one level down, even though nothing of them is compiled in.
+List<String> gitNamedDependencies(String pubspecText) {
+  final List<String> found = <String>[];
+  bool inDependencyBlock = false;
+  String? awaitingSource;
+  for (final String raw in pubspecText.split('\n')) {
+    final String line = raw.replaceAll('\r', '');
+    final String content = line.trimLeft();
+    if (content.isEmpty || content.startsWith('#')) {
+      continue;
+    }
+    final int indent = line.length - content.length;
+    if (indent == 0) {
+      inDependencyBlock = content == 'dependencies:' || content == 'dev_dependencies:';
+      awaitingSource = null;
+      continue;
+    }
+    if (!inDependencyBlock) {
+      continue;
+    }
+    if (indent == 2) {
+      // `name:` opens a block source that may turn out to be git; `name: ^1.0.0` is hosted.
+      final String trimmed = content.trimRight();
+      awaitingSource = trimmed.endsWith(':') ? trimmed.substring(0, trimmed.length - 1) : null;
+      continue;
+    }
+    if (indent == 4 && content.trimRight() == 'git:' && awaitingSource != null) {
+      found.add(awaitingSource);
+      awaitingSource = null;
+    }
+  }
+  found.sort();
+  return found;
+}
+
+/// Where each package the binary is composed from answered, read out of a package config.
+///
+/// [packageConfigText] is the JSON `dart pub get` wrote, [configDirectory] the directory it sits in
+/// — what every `rootUri` is relative to — and [members] the names the manifest declares with a git
+/// source. Listed are the members plus every other entry that answered from a working checkout or
+/// from the cache's git area; the package's own entry and hosted dependencies under the cache are
+/// not composition, and a config that does not name its cache classifies nothing, so everything
+/// declared comes back missing rather than half-guessed.
+List<ComposedPackage> compositionOf({
+  required String packageConfigText,
+  required String configDirectory,
+  required List<String> members,
+}) {
+  final Object? read = jsonDecode(packageConfigText);
+  if (read is! Map<String, Object?>) {
+    return const <ComposedPackage>[];
+  }
+  final Object? entries = read['packages'];
+  final Object? cacheValue = read['pubCache'];
+  if (entries is! List<Object?> || cacheValue is! String) {
+    return const <ComposedPackage>[];
+  }
+  final Uri base = Uri.directory(configDirectory, windows: Platform.isWindows);
+  final String cache = _withoutTrailingSlash(cacheValue);
+  final String ownRoot = _withoutTrailingSlash(base.resolveUri(Uri.parse('../')).toString());
+  final List<ComposedPackage> found = <ComposedPackage>[];
+  for (final Object? entry in entries) {
+    if (entry is! Map<String, Object?>) {
+      continue;
+    }
+    final Object? name = entry['name'];
+    final Object? rootUri = entry['rootUri'];
+    if (name is! String || rootUri is! String) {
+      continue;
+    }
+    final String resolved = _withoutTrailingSlash(base.resolveUri(Uri.parse(rootUri)).toString());
+    final bool fromCache = resolved.startsWith('$cache/');
+    final bool fromCacheGit = resolved.startsWith('$cache/git/');
+    final bool composed =
+        members.contains(name) || (resolved != ownRoot && (fromCacheGit || !fromCache));
+    if (composed) {
+      found.add(ComposedPackage(name: name, root: _shownDirectory(resolved), fromCache: fromCache));
+    }
+  }
+  found.sort((ComposedPackage a, ComposedPackage b) => a.name.compareTo(b.name));
+  return found;
+}
+
+/// Empty on a uniform composition; one refusal per finding otherwise.
+///
+/// Refused are a mixed composition — packages from both sides at once — and a member of [members]
+/// that [composition] has no answer for, which means the manifest and the resolution disagree and
+/// nothing true can be said about what a build would compile.
+List<String> compositionRefusals({
+  required List<ComposedPackage> composition,
+  required List<String> members,
+}) {
+  final List<String> refusals = <String>[];
+  final Set<String> present = <String>{
+    for (final ComposedPackage composed in composition) composed.name,
+  };
+  for (final String member in members) {
+    if (!present.contains(member)) {
+      refusals.add(
+        '$member is declared with a git source and the resolution does not say where it answered '
+        'from, so nothing true can be said about what a build would compile',
+      );
+    }
+  }
+  final List<ComposedPackage> fromCheckouts = <ComposedPackage>[
+    for (final ComposedPackage composed in composition)
+      if (!composed.fromCache) composed,
+  ];
+  final List<ComposedPackage> fromCommits = <ComposedPackage>[
+    for (final ComposedPackage composed in composition)
+      if (composed.fromCache) composed,
+  ];
+  if (fromCheckouts.isNotEmpty && fromCommits.isNotEmpty) {
+    refusals.add(
+      <String>[
+        'mixed composition: the binary would be built half from the working tree and half from '
+            'what was pushed, and nothing in it would say which half is which',
+        '  from working checkouts: ${_named(fromCheckouts)}',
+        '  from pushed commits: ${_named(fromCommits)}',
+        '  all or none: name every one of them in pubspec_overrides.yaml, or delete that file and '
+            'resolve again',
+      ].join('\n'),
+    );
+  }
+  return refusals;
+}
+
+/// The one line an operator learns the composition from.
+String compositionLine(List<ComposedPackage> composition) {
+  if (composition.isEmpty) {
+    return 'composition: nothing here is composed from a git-named package';
+  }
+  if (composition.every((ComposedPackage composed) => composed.fromCache)) {
+    return 'composition: every git-named package answered from a pushed commit in the pub cache — '
+        'a pushed build, not the working trees';
+  }
+  if (composition.every((ComposedPackage composed) => !composed.fromCache)) {
+    return 'composition: every git-named package answered from a working checkout beside this '
+        'repository — a working-tree build, not what was pushed';
+  }
+  return 'composition: mixed — refused above';
+}
+
+String _named(List<ComposedPackage> composition) => composition
+    .map((ComposedPackage composed) => '${composed.name} at ${composed.root}')
+    .join('; ');
+
+String _withoutTrailingSlash(String uri) =>
+    uri.endsWith('/') ? uri.substring(0, uri.length - 1) : uri;
+
+/// The directory a `file:` URI string names, shown with forward slashes and no scheme.
+String _shownDirectory(String uri) {
+  String path = Uri.parse(uri).path;
+  if (path.length >= 3 && path[0] == '/' && path[2] == ':') {
+    path = path.substring(1);
+  }
+  return path;
 }
 
 /// Whether [one] and [other] name the same directory.
