@@ -8,9 +8,11 @@
 # So the suite does not ask the disk what it checks. It is told here, and
 # test/checks/declared_checks_test.dart holds the disk against this file, naming whatever vanished.
 #
-# WHAT THIS REPOSITORY CHECKS IS ITS GATE, and that is the whole of it. It holds no steps: it is the
-# composition root, and the only thing it decides is which plugins are compiled into the binary. The
-# checks that read a registry live with the packages that have one.
+# WHAT THIS REPOSITORY CHECKS IS ITS GATE AND ITS COMPOSITION. It holds no steps: it is the
+# composition root, and what it decides is which plugins are compiled into the binary. The checks
+# that read a single plugin's registry live with that plugin; the one check that needs the registry
+# the customer actually receives — every shipped program file resolving against the shipped plugin
+# set — lives here, because this is the only package that can compose that registry.
 #
 # FORMAT. `<check>: <file, relative to this file>`, one per line, the reason on the comment line
 # directly above it. It is read line by line and the reader imports nothing but dart:io, because the
@@ -29,6 +31,11 @@ analysis: test/checks/analysis_check_test.dart
 tree-analysis: test/checks/analysis_test.dart
 # This file agrees with the suite on disk, and the refusal that enforces it can really go red.
 declared-checks: test/checks/declared_checks_test.dart
+# Every program file of the installation loads and binds every name to the registry this binary
+# ships, and the reading states how many programs and how many steps it covered — the first gate of
+# the design, run in the tree so a step deleted from a plugin turns this repository red rather than
+# a machine.
+config-validity: test/checks/config_validity_test.dart
 # The gate finds every package of the repository it stands in, rather than the one directory its own
 # script sits in — which is how it once printed "every check green" over files it had never opened.
 gate-tree: test/checks/gate_tree_test.dart
