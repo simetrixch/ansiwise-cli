@@ -109,7 +109,15 @@ Future<void> main(List<String> argv) async {
       files: machine.files,
       path: configuration,
     );
-    registry = plugins.activate(active.plugins);
+    // Two surfaces, composed in the order they depend on each other. Activating decides which steps
+    // and which conditions EXIST at all; binding then points the generic conditions at the facts of
+    // this installation and gives each the name a program row writes. A condition bound before its
+    // plugin was activated would be bound to nothing.
+    registry = bindConditions(
+      registry: plugins.activate(active.plugins),
+      named: active.conditions,
+      where: configuration,
+    );
     logLevel = active.logLevel;
     requireDryRun = active.requireDryRun;
     if (!active.allowUnwind) {

@@ -19,7 +19,15 @@ Future<void> main() async {
     files: const RealFiles(),
     path: '$installationRoot/${Configuration.defaultFileName}',
   );
-  final Registry shipped = compiledPlugins.activate(active.plugins);
+  // Composed exactly as bin/ansiwise.dart composes it: the plugins the configuration turns on, and
+  // then the conditions that same file names bound onto them. Without the second half this check
+  // would report every row gated on an installation's own condition as naming an unknown one — and
+  // narrowed until it passed, it would prove the programs correct against a registry no binary has.
+  final Registry shipped = bindConditions(
+    registry: compiledPlugins.activate(active.plugins),
+    named: active.conditions,
+    where: '$installationRoot/${Configuration.defaultFileName}',
+  );
   final ConfigValidity check = ConfigValidity(
     files: const RealFiles(),
     registry: shipped,
