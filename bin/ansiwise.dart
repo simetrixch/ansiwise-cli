@@ -69,15 +69,11 @@ Future<void> main(List<String> argv) async {
     exit(rest.isEmpty && !options.flag('help') ? 64 : 0);
   }
 
-  // Not const: the entropy port holds the platform's cryptographic generator, which is created
-  // once and cannot be built at compile time.
-  final Machine machine = Machine(
-    shell: const RealShell(),
-    files: const RealFiles(),
-    http: const RealHttp(),
-    clock: const RealClock(),
-    entropy: RealEntropy(),
-  );
+  // The file system is built first and on its own, because the configuration has to be read before
+  // the rest of the machine can be built: what a command that has to run as root is elevated with
+  // stands in that file, and a shell built before it was read would be a shell reaching for a path
+  // nobody chose.
+  const RealFiles files = RealFiles();
 
   // Every plugin this binary was compiled with. Dart ahead of time loads no code that was not
   // built in, so this list is a fact of the build — and the configuration below decides which of
@@ -86,6 +82,10 @@ Future<void> main(List<String> argv) async {
 
   final String configuration = options.option('config') ?? Configuration.defaultFileName;
   final Registry registry;
+  // Where the password that raises a command to root comes from. Unconfigured unless the file names
+  // it: there is no path to fall back to, and an installation whose steps never need root names
+  // nothing and is complete without it.
+  Elevation elevation = const Elevation.unconfigured();
   // The configuration decides it and the command line overrides it, which is the ordinary
   // precedence: the file is what this installation always wants, the flag is what this one run
   // wants. Declared here so a refusal below cannot leave it unset.
@@ -99,16 +99,13 @@ Future<void> main(List<String> argv) async {
   // who set a key in a file sends them looking in the wrong place.
   String? unwindDisabledBy;
   try {
-    if (!await machine.files.exists(configuration)) {
+    if (!await files.exists(configuration)) {
       throw PluginRejected(
         'there is no $configuration, so nothing says which plugins are active\n'
         'write one naming at least one of: ${plugins.names.join(', ')}',
       );
     }
-    final Configuration active = await Configuration.load(
-      files: machine.files,
-      path: configuration,
-    );
+    final Configuration active = await Configuration.load(files: files, path: configuration);
     // Two surfaces, composed in the order they depend on each other. Activating decides which steps
     // and which conditions EXIST at all; binding then points the generic conditions at the facts of
     // this installation and gives each the name a program row writes. A condition bound before its
@@ -123,10 +120,31 @@ Future<void> main(List<String> argv) async {
     if (!active.allowUnwind) {
       unwindDisabledBy = 'no_unwind: true in $configuration';
     }
+    // Read at start-up and not at the first command that needs root. An installation whose password
+    // file is missing learns it before anything has been looked at, rather than halfway through a
+    // run that has already changed the machine.
+    if (active.elevationPasswordFile case final String path) {
+      elevation = await Elevation.read(files: files, path: path);
+    }
   } on PluginRejected catch (refused) {
     stderr.writeln(refused.message);
     exit(78);
+  } on ElevationUnavailable catch (refused) {
+    // Its own exit, and its own sentence. The operator has to be sent to the password file rather
+    // than to the configuration that names it, and both are configuration problems.
+    stderr.writeln(refused.message);
+    exit(78);
   }
+
+  // Not const: the entropy port holds the platform's cryptographic generator, which is created
+  // once and cannot be built at compile time.
+  final Machine machine = Machine(
+    shell: RealShell(elevation: elevation),
+    files: files,
+    http: const RealHttp(),
+    clock: const RealClock(),
+    entropy: RealEntropy(),
+  );
 
   if (options.option('log-level') case final String asked) {
     logLevel = LogLevel.values.firstWhere((LogLevel each) => each.name == asked);
