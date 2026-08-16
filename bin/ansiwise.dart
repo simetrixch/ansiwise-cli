@@ -44,7 +44,10 @@ Future<void> main(List<String> argv) async {
     ..addOption('role', defaultsTo: 'master', help: 'what this machine is')
     ..addOption('stage', defaultsTo: 'dev')
     ..addOption('fqdn', defaultsTo: '', help: 'the domain name of this installation')
-    ..addFlag('no-unwind', help: 'disable unwinding steps on failure so evidence is preserved for debugging')
+    ..addFlag(
+      'no-unwind',
+      help: 'disable unwinding steps on failure so evidence is preserved for debugging',
+    )
     ..addFlag('help', abbr: 'h', negatable: false);
 
   final ArgResults options;
@@ -339,7 +342,9 @@ Future<int> _runProgram({
   ).run(program: resolved, mode: mode, header: header, answers: answers);
   await recorder.save(record);
 
-  stdout.writeln('${record.id}  ${record.program} ${record.mode.name}  exit ${record.exitCode}  ${record.standings.summary}');
+  stdout.writeln(
+    '${record.id}  ${record.program} ${record.mode.name}  exit ${record.exitCode}  ${record.standings.summary}',
+  );
   for (final String issue in record.issues) {
     stdout.writeln('  issue: $issue');
   }

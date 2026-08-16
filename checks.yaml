@@ -1,0 +1,52 @@
+# Every check this repository makes, and the file that carries it.
+#
+# WHY THIS FILE EXISTS. `dart test` discovers whatever is on disk and reports whether any of it
+# failed. Delete a check file and nothing fails: the check is simply not there, and the run prints
+# that every check is green. It is worse than a missing test, because a check and its counter-probe
+# live in the same file — the thing that would have noticed goes with the thing it was watching.
+#
+# So the suite does not ask the disk what it checks. It is told here, and
+# test/checks/declared_checks_test.dart holds the disk against this file, naming whatever vanished.
+#
+# WHAT THIS REPOSITORY CHECKS IS ITS GATE, and that is the whole of it. It holds no steps: it is the
+# composition root, and the only thing it decides is which plugins are compiled into the binary. The
+# checks that read a registry live with the packages that have one.
+#
+# FORMAT. `<check>: <file, relative to this file>`, one per line, the reason on the comment line
+# directly above it. It is read line by line and the reader imports nothing but dart:io, because the
+# same reading is done by gate programs that have to start on a fresh clone where no package has
+# been resolved.
+#
+# ADDING A CHECK MEANS ADDING A LINE. A check file that is not declared here is reported too: an
+# undeclared check is one nobody agreed to, and it is how a suite grows a file that judges nothing.
+
+# The analyzer and the formatter really are started with the flags the gate claims, and a fault that
+# only reports at info still turns the tree red.
+analysis: test/checks/analysis_check_test.dart
+# This file agrees with the suite on disk, and the refusal that enforces it can really go red.
+declared-checks: test/checks/declared_checks_test.dart
+# The gate finds every package of the repository it stands in, rather than the one directory its own
+# script sits in — which is how it once printed "every check green" over files it had never opened.
+gate-tree: test/checks/gate_tree_test.dart
+# Every package the gate walks is analysed, formatted and tested, and a package that fails any of
+# the three makes the whole gate answer non-zero.
+package-gate: test/checks/package_gate_test.dart
+# The one Dart version the checks are true against is enforced by reading this process's own
+# version, and every other is refused with both numbers in the refusal.
+version-guard: test/checks/version_guard_test.dart
+
+# NOT DECLARED, AND NOT ON DISK: resolved-packages.
+#
+# tool/gate/resolved_packages.dart still RUNS — tool/gate/package_gate.dart imports it — and in this
+# repository it measures nothing, because it asks which package of this repository answered another
+# package of this repository, and there is only one. Its own test refuses to pass on that rather
+# than going quietly green, which is the check working.
+#
+# The risk it was built for did not go away in the move; it grew. This repository names seven
+# packages of two OTHER repositories by a git ref, and a gitignored override file re-points all
+# seven at working checkouts. A composition where SOME are overridden and some are not builds the
+# binary half from the working tree and half from what was pushed, with nothing saying which.
+#
+# Repointing it at that question is simetrixch/ansiwise-plugins#120. The line comes back here when
+# it is done. It stands written out because a check that quietly stops covering its subject is worse
+# than no check: it is read as a guarantee.
