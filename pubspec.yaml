@@ -59,3 +59,11 @@ dev_dependencies:
       url: https://github.com/simetrixch/ansiwise-checks.git
       ref: master
       path: registry
+  # The tree half by name as well, because this package imports it directly for its own
+  # tree-analysis check. Reached transitively through the registry half it would resolve and still
+  # be an undeclared import, which the analyzer refuses and is right to.
+  ansiwise_checks_tree:
+    git:
+      url: https://github.com/simetrixch/ansiwise-checks.git
+      ref: master
+      path: tree

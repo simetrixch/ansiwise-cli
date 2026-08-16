@@ -32,7 +32,7 @@ packages:
     source: path
     version: "0.1.0"
   ansiwise_checks_tree:
-    dependency: "direct overridden"
+    dependency: "direct dev"
     description:
       path: "../ansiwise-checks/tree"
       relative: true

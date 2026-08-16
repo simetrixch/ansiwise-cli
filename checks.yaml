@@ -23,6 +23,10 @@
 # The analyzer and the formatter really are started with the flags the gate claims, and a fault that
 # only reports at info still turns the tree red.
 analysis: test/checks/analysis_check_test.dart
+# The analyzer and the formatter find nothing to change in THIS package tree. The entry above
+# proves the gate starts them correctly; this one is the answer they give about this tree, asked
+# from the suite so a plain dart test says it too.
+tree-analysis: test/checks/analysis_test.dart
 # This file agrees with the suite on disk, and the refusal that enforces it can really go red.
 declared-checks: test/checks/declared_checks_test.dart
 # The gate finds every package of the repository it stands in, rather than the one directory its own
