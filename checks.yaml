@@ -36,6 +36,12 @@ declared-checks: test/checks/declared_checks_test.dart
 # the design, run in the tree so a step deleted from a plugin turns this repository red rather than
 # a machine.
 config-validity: test/checks/config_validity_test.dart
+# The installation's own configuration composes into a registry this binary can offer: every plugin
+# it turns on is compiled in, and every condition it names binds to a generic one that is. It is the
+# earliest refusal there is — it ends the binary at start-up, for every program on every machine —
+# and the configuration is written in one repository while the binary is built from another, so
+# nothing but a check that reads both can notice.
+configuration-composes: test/checks/configuration_composes_test.dart
 # The gate finds every package of the repository it stands in, rather than the one directory its own
 # script sits in — which is how it once printed "every check green" over files it had never opened.
 gate-tree: test/checks/gate_tree_test.dart
