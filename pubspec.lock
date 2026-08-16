@@ -27,7 +27,14 @@ packages:
   ansiwise_checks:
     dependency: "direct dev"
     description:
-      path: "../ansiwise-api/checks"
+      path: "../ansiwise-checks/registry"
+      relative: true
+    source: path
+    version: "0.1.0"
+  ansiwise_checks_tree:
+    dependency: "direct overridden"
+    description:
+      path: "../ansiwise-checks/tree"
       relative: true
     source: path
     version: "0.1.0"
