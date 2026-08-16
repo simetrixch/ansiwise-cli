@@ -94,8 +94,10 @@ Future<void> main(List<String> argv) async {
   // the waiver is read here rather than assumed, so the gate a run meets is the one this
   // installation configured rather than the one the code happens to default to.
   bool requireDryRun = true;
-  // Whether the engine is allowed to unwind on failure.
-  bool allowUnwind = true;
+  // WHAT turned the unwind off, and not whether it is off. The record and the log both name the
+  // surface the decision came from, because a message about a command-line option to an operator
+  // who set a key in a file sends them looking in the wrong place.
+  String? unwindDisabledBy;
   try {
     if (!await machine.files.exists(configuration)) {
       throw PluginRejected(
@@ -110,7 +112,9 @@ Future<void> main(List<String> argv) async {
     registry = plugins.activate(active.plugins);
     logLevel = active.logLevel;
     requireDryRun = active.requireDryRun;
-    allowUnwind = active.allowUnwind;
+    if (!active.allowUnwind) {
+      unwindDisabledBy = 'no_unwind: true in $configuration';
+    }
   } on PluginRejected catch (refused) {
     stderr.writeln(refused.message);
     exit(78);
@@ -170,7 +174,8 @@ Future<void> main(List<String> argv) async {
       program: ProgramName(rest.first),
       logLevel: logLevel,
       requireDryRun: requireDryRun,
-      allowUnwind: allowUnwind && !options.flag('no-unwind'),
+      // The option wins where both say it, because whoever typed it meant this run.
+      unwindDisabledBy: options.flag('no-unwind') ? 'the --no-unwind option' : unwindDisabledBy,
     ),
   );
 }
@@ -214,7 +219,7 @@ Future<int> _runProgram({
   required List<String> argv,
   required ProgramName program,
   required LogLevel logLevel,
-  required bool allowUnwind,
+  required String? unwindDisabledBy,
 }) async {
   final ResolvedProgram? resolved = catalogue.byName(program);
   if (resolved == null) {
@@ -338,7 +343,7 @@ Future<int> _runProgram({
     recorder: recorder,
     redactor: redactor,
     logLevel: logLevel,
-    allowUnwind: allowUnwind,
+    unwindDisabledBy: unwindDisabledBy,
   ).run(program: resolved, mode: mode, header: header, answers: answers);
   await recorder.save(record);
 
