@@ -138,9 +138,13 @@ Future<void> main(List<String> argv) async {
 
   // Not const: the entropy port holds the platform's cryptographic generator, which is created
   // once and cannot be built at compile time.
+  // The file system a STEP is given can act as root; the one that read the configuration above
+  // cannot, and did not need to. They are two instances of one class rather than one shared, because
+  // what the second may do is decided by something the first had to be built before knowing.
+  final RealShell shell = RealShell(elevation: elevation);
   final Machine machine = Machine(
-    shell: RealShell(elevation: elevation),
-    files: files,
+    shell: shell,
+    files: RealFiles(asRoot: shell),
     http: const RealHttp(),
     clock: const RealClock(),
     entropy: RealEntropy(),
