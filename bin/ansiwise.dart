@@ -454,7 +454,7 @@ RunId _newRunId(Clock clock) {
 /// still runs, and its fingerprint simply carries no commit.
 Future<String> _commit(Machine machine) async {
   final CommandResult head = await machine.shell.run(
-    const Command.observing('git', <String>['rev-parse', 'HEAD']),
+    const Command.observing('git', arguments: <String>['rev-parse', 'HEAD']),
   );
   return head.ok ? head.trimmed : '';
 }
