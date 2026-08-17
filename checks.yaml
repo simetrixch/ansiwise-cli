@@ -42,6 +42,14 @@ config-validity: test/checks/config_validity_test.dart
 # and the configuration is written in one repository while the binary is built from another, so
 # nothing but a check that reads both can notice.
 configuration-composes: test/checks/configuration_composes_test.dart
+# The one executable that travels to a machine is compiled from the composition root, and a compiler
+# that refused is reported as a failure carrying its own words instead of as a binary nobody has. The
+# directory the artifact goes into is made first, because the compiler writes none.
+binary-build: test/checks/binary_build_test.dart
+# Which packages of a tree the gate is about to check — the denominator every other check is run once
+# per entry of. A manifest at a root with no code declares a workspace and is not counted as a
+# package of its own, and a manifest under a build output or a resolved dependency is not one either.
+dart-packages: test/checks/dart_packages_test.dart
 # The gate finds every package of the repository it stands in, rather than the one directory its own
 # script sits in — which is how it once printed "every check green" over files it had never opened.
 gate-tree: test/checks/gate_tree_test.dart
