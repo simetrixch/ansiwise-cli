@@ -1,8 +1,8 @@
 /// Where the gate says what it is about to do.
 ///
-/// The classes that decide something return it; they never print. A person watching a gate run still
-/// needs to know which package is being resolved and which suite is running, and that is what this
-/// is for — so a test can drive the same run and read what it announced instead of watching a
+/// The classes that decide something return it; they never print. A person watching a gate run
+/// still needs to know which package is being resolved and which suite is running, and that is what
+/// this is for — so a test can drive the same run and read what it announced instead of watching a
 /// terminal.
 library;
 
@@ -31,6 +31,9 @@ final class StdoutGateLog implements GateLog {
 
 /// A log that keeps what it was told, for a test that has to read it.
 final class CollectedGateLog implements GateLog {
+  /// Creates an empty log.
+  CollectedGateLog();
+
   /// Everything the gate said, in order.
   final List<String> said = <String>[];
 

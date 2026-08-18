@@ -3,6 +3,10 @@
 /// Discovery is a search of the tree, not a read of a workspace list. A package that is on disk but
 /// not listed is exactly the case the gate must still see: it compiles, imports and breaks a rule
 /// like any other, and reading the list would let it do so unwatched.
+///
+/// The same discovery for the structural checks lives in test/checks/source_tree.dart, over a tree
+/// that a counter-probe can plant. This one walks the filesystem, because it runs before anything
+/// has been resolved and hands the toolchain a directory to start in.
 library;
 
 import 'dart:io';
@@ -20,16 +24,17 @@ final class DartPackage {
   /// What its manifest declares, which is what an import says after `package:`.
   ///
   /// Read from the manifest rather than derived from the directory, because the two differ by
-  /// design: the directory is `hostyour-cloud` and the package is `hostyour_cloud`, since a Dart package
-  /// name may not carry a hyphen.
+  /// design: a directory written with a hyphen holds a package written with an underscore, since a
+  /// Dart package name may not carry a hyphen. Named generically on purpose — this file is one text
+  /// in every repository that has a gate, so an example naming one of them is wrong in the others.
   final String name;
 
   @override
   String toString() => '$name at $directory';
 }
 
-/// Directory names that are never source: build output, editor state, and the dependency directories
-/// of other ecosystems.
+/// Directory names that are never source: build output, editor state, and the dependency
+/// directories of other ecosystems.
 const Set<String> prunedDirectories = <String>{
   '.git',
   '.dart_tool',

@@ -53,6 +53,9 @@ dart-packages: test/checks/dart_packages_test.dart
 # The gate finds every package of the repository it stands in, rather than the one directory its own
 # script sits in — which is how it once printed "every check green" over files it had never opened.
 gate-tree: test/checks/gate_tree_test.dart
+# The gate files that judge nothing are one text in every repository that has a gate — a repair that
+# lands in one copy and not the other is what this reports.
+shared-gate: test/checks/shared_gate_test.dart
 # Every package the gate walks is analysed, formatted and tested, and a package that fails any of
 # the three makes the whole gate answer non-zero.
 package-gate: test/checks/package_gate_test.dart
