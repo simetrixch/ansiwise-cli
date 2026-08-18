@@ -15,6 +15,15 @@ import 'package:test/test.dart';
 /// The programs are the installation's, found through the one resolution every audit uses, so this
 /// suite and the answer-declaration probes cannot come to disagree about where the installation is.
 Future<void> main() async {
+  // SKIPPED WHERE THERE IS NO INSTALLATION TO READ, and the reason is printed rather than passed
+  // over. This suite reads the programs of an INSTALLATION, and an installation lives in its own
+  // repository — so a clone of this one standing alone has nothing here to be right or wrong about.
+  // Refusing would call a sound repository broken; passing silently would let a green gate claim a
+  // check that never ran. Saying so is the only honest third thing.
+  if (!installationIsFindable) {
+    test('config-validity', () {}, skip: installationNotFound);
+    return;
+  }
   final Configuration active = await Configuration.load(
     files: const RealFiles(),
     path: '$installationRoot/${Configuration.defaultFileName}',

@@ -20,6 +20,15 @@ import 'package:test/test.dart';
 /// The installation is found through the one resolution every audit here uses, so this suite and the
 /// program checks beside it cannot come to disagree about which tree they are judging.
 Future<void> main() async {
+  // SKIPPED WHERE THERE IS NO INSTALLATION TO READ, and the reason is printed rather than passed
+  // over. This suite reads the programs of an INSTALLATION, and an installation lives in its own
+  // repository — so a clone of this one standing alone has nothing here to be right or wrong about.
+  // Refusing would call a sound repository broken; passing silently would let a green gate claim a
+  // check that never ran. Saying so is the only honest third thing.
+  if (!installationIsFindable) {
+    test('configuration-composes', () {}, skip: installationNotFound);
+    return;
+  }
   final String file = '$installationRoot/${Configuration.defaultFileName}';
   final Configuration active = await Configuration.load(files: const RealFiles(), path: file);
 
