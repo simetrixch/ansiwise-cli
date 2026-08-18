@@ -7,7 +7,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
-import 'package:ansiwise_api/ansiwise_api.dart';
+import 'package:ansiwise_core/ansiwise_core.dart';
+import 'package:ansiwise_rest/ansiwise_rest.dart';
 import 'package:ansiwise_cli/plugins.dart';
 
 Future<void> main(List<String> argv) async {

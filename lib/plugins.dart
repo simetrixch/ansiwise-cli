@@ -1,4 +1,4 @@
-import 'package:ansiwise_api/ansiwise_api.dart';
+import 'package:ansiwise_core/ansiwise_core.dart';
 import 'package:ansiwise_authentik/ansiwise_authentik.dart';
 import 'package:ansiwise_git/ansiwise_git.dart';
 import 'package:ansiwise_helm/ansiwise_helm.dart';

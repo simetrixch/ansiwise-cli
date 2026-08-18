@@ -10,9 +10,17 @@ environment:
   sdk: ^3.12.0
 
 dependencies:
-  ansiwise_api:
+  ansiwise_core:
     git:
-      url: https://github.com/simetrixch/ansiwise-api.git
+      url: https://github.com/simetrixch/ansiwise-core.git
+      path: core
+      ref: master
+  # The REST resources `serve` puts in front of a run, and the adapter that carries them over the
+  # session's own pipes. Its own package since the framework stopped meaning two things at once.
+  ansiwise_rest:
+    git:
+      url: https://github.com/simetrixch/ansiwise-core.git
+      path: rest
       ref: master
   ansiwise_kubernetes:
     git:
