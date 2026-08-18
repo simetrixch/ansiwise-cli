@@ -204,6 +204,8 @@ Future<void> main(List<String> argv) async {
       argv: argv,
       program: ProgramName(rest.first),
       logLevel: logLevel,
+      // Handed on so the answer conditions can be measured before the answers are checked.
+      registry: registry,
       requireDryRun: requireDryRun,
       // The option wins where both say it, because whoever typed it meant this run.
       unwindDisabledBy: options.flag('no-unwind') ? 'the --no-unwind option' : unwindDisabledBy,
@@ -250,6 +252,7 @@ Future<int> _runProgram({
   required List<String> argv,
   required ProgramName program,
   required LogLevel logLevel,
+  required Registry registry,
   required String? unwindDisabledBy,
 }) async {
   final ResolvedProgram? resolved = catalogue.byName(program);
@@ -268,10 +271,31 @@ Future<int> _runProgram({
   // the two doors cannot come to disagree about what a program needs.
   final Arguments answers;
   try {
+    final Map<String, Object?> given = await _answersIn(machine, options.option('answers'));
+
+    // WHICH CONDITIONS HOLD, ASKED BEFORE THE ANSWERS ARE CHECKED. An answer stated only under a
+    // condition is required exactly where that condition holds, so the question comes first — and it
+    // is asked against the answers AS SUPPLIED, because the validation that would tidy them is the
+    // thing waiting on this. Nothing is recorded: a program whose answers do not add up never
+    // becomes a run.
+    final Set<String> holding = await PredicateEvaluation.unrecorded(
+      machine: machine,
+      answers: Arguments(<String, Object>{
+        for (final MapEntry<String, Object?> each in given.entries)
+          if (each.value case final Object value) each.key: value,
+      }),
+    ).answerConditionsThatHold(resolved, registry);
+
     answers = resolved.declared.answers.validate(
-      await _answersIn(machine, options.option('answers')),
+      given,
       program: program.value,
+      conditionsThatHold: holding,
     );
+  } on ConditionUnanswerable catch (refused) {
+    // Its own exit and its own sentence: the operator has to be sent to the condition that could not
+    // be answered, not to the answer it was deciding about.
+    stderr.writeln(refused.because);
+    return 65;
   } on AnswersRejected catch (refused) {
     stderr.writeln(refused.message);
     return 65;
