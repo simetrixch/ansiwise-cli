@@ -39,6 +39,11 @@ dependencies:
       url: https://github.com/simetrixch/ansiwise-plugins.git
       ref: master
       path: ansiwise-host
+  ansiwise_authentik:
+    git:
+      url: https://github.com/simetrixch/ansiwise-plugins.git
+      path: ansiwise-authentik
+      ref: master
   ansiwise_git:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git

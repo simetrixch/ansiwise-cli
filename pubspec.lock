@@ -24,6 +24,13 @@ packages:
       relative: true
     source: path
     version: "0.1.0"
+  ansiwise_authentik:
+    dependency: "direct main"
+    description:
+      path: "../ansiwise-plugins/ansiwise-authentik"
+      relative: true
+    source: path
+    version: "0.1.0"
   ansiwise_checks:
     dependency: "direct dev"
     description:
