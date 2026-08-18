@@ -1,10 +1,14 @@
 # Resolved, not authored.
 .dart_tool/
 
-# pubspec.lock is NOT here, and that is the point: this repository is compiled to the
-# executable that deploys a machine, so which versions it was built against is part of what
-# shipped. Resolving them afresh at build time would mean two machines deployed by the same
-# release ran different code.
+# The lock. This repository is the application, which is the one place a tracked lock would be
+# right — and it cannot be one here, because the same package is also the one every developer
+# resolves beside the sibling checkouts. `dart pub get` rewrites the lock with whatever answered,
+# so a tracked one holds path entries naming one machine's directories half the time and git refs
+# the other half, and every resolution turns the other half into a change nobody made. What travels
+# would be a disk layout rather than a set of versions, which is the opposite of what a lock is
+# kept for. The refs in pubspec.yaml are what a build resolves against.
+pubspec.lock
 
 # The compiled binary. It is built by tool/build.dart rather than kept here.
 build/
