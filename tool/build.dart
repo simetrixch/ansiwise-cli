@@ -9,6 +9,7 @@ library;
 import 'dart:io';
 
 import 'gate/binary_build.dart';
+import 'gate/plugin_set.dart';
 import 'gate/paths.dart';
 import 'gate/real_dart_toolchain.dart';
 
@@ -18,10 +19,15 @@ Future<void> main(List<String> arguments) async {
     exit(2);
   }
 
-  final BinaryBuild build = BinaryBuild(
-    toolchain: const RealDartToolchain(),
-    package: packageOfToolScript(Platform.script).path,
-  );
+  // WRITTEN BEFORE ANYTHING IS COMPILED, because the compiler needs the imports in the source. The
+  // manifest is what says which plugins this product's binary carries; this file is what the
+  // compiler reads, and it is a function of that manifest and of nothing else.
+  final String package = packageOfToolScript(Platform.script).path;
+  if (writePluginSet(package)) {
+    stdout.writeln('wrote lib/plugins.dart from plugins.yaml');
+  }
+
+  final BinaryBuild build = BinaryBuild(toolchain: const RealDartToolchain(), package: package);
 
   switch (await build.to(arguments.isEmpty ? defaultTarget : arguments.single)) {
     case Built(:final String target, :final String toolVersion):

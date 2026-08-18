@@ -56,6 +56,9 @@ gate-tree: test/checks/gate_tree_test.dart
 # The gate files that judge nothing are one text in every repository that has a gate — a repair that
 # lands in one copy and not the other is what this reports.
 shared-gate: test/checks/shared_gate_test.dart
+# lib/plugins.dart is what plugins.yaml says — the one file that tells one product's binary from
+# another's, generated so a second product needs a manifest rather than a copy of this repository.
+plugin-set: test/checks/plugin_set_test.dart
 # Every package the gate walks is analysed, formatted and tested, and a package that fails any of
 # the three makes the whole gate answer non-zero.
 package-gate: test/checks/package_gate_test.dart

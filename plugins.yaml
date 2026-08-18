@@ -1,0 +1,21 @@
+# Which plugins this product's binary carries.
+#
+# WHAT THIS FILE IS FOR. Everything else in this repository is generic: the argument parsing, the
+# gate, `serve`. This one line-per-plugin list is the only thing that says which PRODUCT the binary
+# composed here is for — and holding it as hand-written Dart made a tool-named repository into a
+# product one, where a second customer needed a copy of the whole composition root.
+#
+# A different product supplies a different file of exactly this shape. `dart run tool/build.dart`
+# writes lib/plugins.dart from it, and a check reports a lib/plugins.dart that says anything else.
+#
+# FORMAT. One plugin per line: the package it comes from, a space, and the class that is its entry.
+# `#` opens a comment; a blank line is ignored. Order is not precedence — a name registered twice is
+# refused rather than resolved — it is only how they read.
+
+ansiwise_host              HostPlugin
+ansiwise_kubernetes        KubernetesPlugin
+ansiwise_vault             VaultPlugin
+ansiwise_vault_kubernetes  VaultKubernetesPlugin
+ansiwise_helm              HelmPlugin
+ansiwise_git               GitPlugin
+ansiwise_authentik         AuthentikPlugin
