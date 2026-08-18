@@ -41,7 +41,7 @@ packages:
   ansiwise_core:
     dependency: "direct main"
     description:
-      path: "../ansiwise-core/core"
+      path: "../ansiwise-core"
       relative: true
     source: path
     version: "0.1.0"
@@ -76,7 +76,7 @@ packages:
   ansiwise_rest:
     dependency: "direct main"
     description:
-      path: "../ansiwise-core/rest"
+      path: "../ansiwise-rest"
       relative: true
     source: path
     version: "0.1.0"
