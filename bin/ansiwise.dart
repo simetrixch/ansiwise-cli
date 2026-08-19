@@ -400,7 +400,7 @@ Future<int> _runProgram({
   // the two doors cannot come to disagree about what a program needs.
   final Arguments answers;
   try {
-    final Map<String, Object?> given = inputs.answers;
+    final Map<String, Object?> given = _withElevationPassword(inputs, resolved, elevationSource);
 
     // WHICH CONDITIONS HOLD, ASKED BEFORE THE ANSWERS ARE CHECKED. An answer stated only under a
     // condition is required exactly where that condition holds, so the question comes first — and it
@@ -420,6 +420,12 @@ Future<int> _runProgram({
       program: program.value,
       conditionsThatHold: holding,
     );
+  } on ElevationUnavailable catch (refused) {
+    // Its own exit, because it is a configuration problem and not an answer somebody mistyped: a
+    // caller sending the password under the name the run fills itself, or a program declaring that
+    // name on an installation whose password comes from a file.
+    stderr.writeln(refused.message);
+    return 78;
   } on ConditionUnanswerable catch (refused) {
     // Its own exit and its own sentence: the operator has to be sent to the condition that could not
     // be answered, not to the answer it was deciding about.
@@ -659,3 +665,57 @@ Future<String> _commit(Machine machine) async {
   );
   return head.ok ? head.trimmed : '';
 }
+
+/// The answers of this run, with the caller's elevation password among them where the program asked
+/// for it by name.
+///
+/// **ONE VALUE, ONE NAME, ONE PLACE ON THE WIRE.** A program that has to PERSIST the password — put
+/// it in the platform's store so something else can raise a command to root later — needs to reach
+/// it, and the value is already in this run: the caller sent it beside the answers. Making the
+/// program declare a second answer for the same thing would put it on the wire twice, and two
+/// spellings of one value drift apart exactly once and then quietly disagree for ever.
+///
+/// So a program that wants it declares an answer under [elevationPasswordAnswer], and it is filled
+/// from what the caller already sent. Nothing else may fill it: an answer of that name arriving in
+/// the envelope is refused, because a run whose password and whose stored password could differ is
+/// the drift this exists to prevent.
+///
+/// A program declaring it while the configuration does not take the password from the caller is
+/// refused too — the answer could never be filled, and a required answer nobody can give is a run
+/// that refuses at its first gate for a reason nobody can act on.
+Map<String, Object?> _withElevationPassword(
+  CallerInputs inputs,
+  ResolvedProgram resolved,
+  ElevationSource? source,
+) {
+  final bool wanted = resolved.declared.answers.specs.any(
+    (ArgumentSpec spec) => spec.name == elevationPasswordAnswer,
+  );
+  if (inputs.answers.containsKey(elevationPasswordAnswer)) {
+    throw const ElevationUnavailable(
+      'the answers carry "$elevationPasswordAnswer", and that name holds the password this run was '
+      'started with — it is not an answer anybody sends\n'
+      'send it once, beside the answers, and the run fills it in for the program that asked',
+    );
+  }
+  if (!wanted) {
+    return inputs.answers;
+  }
+  if (source is! ElevationFromCaller) {
+    throw const ElevationUnavailable(
+      'this program declares the answer "$elevationPasswordAnswer", which is filled from the '
+      'password the caller hands over — and this installation does not take it from the caller\n'
+      'say "elevation: {password_from_caller: true}" in the configuration, or stop declaring it',
+    );
+  }
+  if (inputs.elevationPassword case final String password) {
+    return <String, Object?>{...inputs.answers, elevationPasswordAnswer: password};
+  }
+  return inputs.answers;
+}
+
+/// The one name a program writes when it wants the password this run was started with.
+///
+/// The same word the envelope uses, on purpose: a value that is called two things is a value two
+/// people describe differently in the same conversation.
+const String elevationPasswordAnswer = 'elevation_password';
