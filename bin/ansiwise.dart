@@ -30,10 +30,12 @@ Future<void> main(List<String> argv) async {
     ..addOption(
       'answers',
       help:
-          'a JSON object of what the program declares it must be told; a path, because a '
-          'credential must not appear in a process listing. "-" reads it from standard input, '
-          'which is how a run started over the API is told, since a file of raw answers would be '
-          'the one thing beside a redacted record that is not redacted',
+          'where this run is told what it needs: {"answers": {...}} and, where the configuration '
+          'says the caller hands it over, "elevation_password" beside it — the same envelope '
+          'POST /runs takes. A path, because a credential must not appear in a process listing. '
+          '"-" reads it from standard input, which is how a run started over the API is told, '
+          'since a file of raw answers would be the one thing beside a redacted record that is '
+          'not redacted',
     )
     ..addOption(
       'log-level',
@@ -87,6 +89,10 @@ Future<void> main(List<String> argv) async {
   // it: there is no path to fall back to, and an installation whose steps never need root names
   // nothing and is complete without it.
   Elevation elevation = const Elevation.unconfigured();
+  // What the caller supplied for this run, read once. It is read up here rather than beside the
+  // answer validation because one of the two elevation routes is in it, and elevation is settled
+  // before the shell that carries it exists.
+  CallerInputs inputs = (answers: const <String, Object?>{}, elevationPassword: null);
   // The configuration decides it and the command line overrides it, which is the ordinary
   // precedence: the file is what this installation always wants, the flag is what this one run
   // wants. Declared here so a refusal below cannot leave it unset.
@@ -122,11 +128,36 @@ Future<void> main(List<String> argv) async {
       unwindDisabledBy = 'no_unwind: true in $configuration';
     }
     // Read at start-up and not at the first command that needs root. An installation whose password
-    // file is missing learns it before anything has been looked at, rather than halfway through a
-    // run that has already changed the machine.
-    if (active.elevationPasswordFile case final String path) {
-      elevation = await Elevation.read(files: files, path: path);
+    // is missing learns it before anything has been looked at, rather than halfway through a run
+    // that has already changed the machine — and that holds for both routes, which is why the
+    // caller's inputs are read here rather than beside the answers they also carry.
+    inputs = await _inputsIn(files, options.option('answers'));
+    elevation = switch (active.elevation) {
+      null => const Elevation.unconfigured(),
+      ElevationFromFile(:final String path) => await Elevation.read(files: files, path: path),
+      ElevationFromCaller() => Elevation.of(
+        inputs.elevationPassword ??
+            (throw ElevationUnavailable(
+              'this installation says the caller hands over the password that raises a command to '
+              'root, and none arrived\n'
+              'put it beside the answers as "elevation_password", or name a password_file in '
+              '$configuration where this machine is to hold one',
+            )),
+        from: 'the caller',
+      ),
+    };
+    if (inputs.elevationPassword != null && active.elevation is! ElevationFromCaller) {
+      // A password handed to a run that will not use it is a credential somebody believes is in
+      // effect. Refused rather than dropped, for the same reason a silently ignored key is.
+      throw ElevationUnavailable(
+        'an "elevation_password" was handed to this run, and $configuration does not say the '
+        'caller is where the password comes from\n'
+        'say "elevation: {password_from_caller: true}" there, or stop sending it',
+      );
     }
+  } on FormatException catch (unreadable) {
+    stderr.writeln('--answers: ${unreadable.message}');
+    exit(65);
   } on PluginRejected catch (refused) {
     stderr.writeln(refused.message);
     exit(78);
@@ -204,6 +235,10 @@ Future<void> main(List<String> argv) async {
       argv: argv,
       program: ProgramName(rest.first),
       logLevel: logLevel,
+      inputs: inputs,
+      // Handed on so the password that raises a command to root is redacted like any other secret,
+      // whichever route it came by.
+      elevation: elevation,
       // Handed on so the answer conditions can be measured before the answers are checked.
       registry: registry,
       requireDryRun: requireDryRun,
@@ -252,6 +287,8 @@ Future<int> _runProgram({
   required List<String> argv,
   required ProgramName program,
   required LogLevel logLevel,
+  required CallerInputs inputs,
+  required Elevation elevation,
   required Registry registry,
   required String? unwindDisabledBy,
 }) async {
@@ -271,7 +308,7 @@ Future<int> _runProgram({
   // the two doors cannot come to disagree about what a program needs.
   final Arguments answers;
   try {
-    final Map<String, Object?> given = await _answersIn(machine, options.option('answers'));
+    final Map<String, Object?> given = inputs.answers;
 
     // WHICH CONDITIONS HOLD, ASKED BEFORE THE ANSWERS ARE CHECKED. An answer stated only under a
     // condition is required exactly where that condition holds, so the question comes first — and it
@@ -373,6 +410,10 @@ Future<int> _runProgram({
   // command line a step composes and through the plan it prints, while ArgumentSpec.secret says the
   // value is never sent back out.
   final Redactor redactor = Redactor(<String>[
+    // The password that raises a command to root, whichever route it came by. It is not an answer
+    // and not an argument, so neither list below reaches it — and a step whose command echoes it,
+    // or a shell that reports it in a failure, would otherwise put it in a world-readable record.
+    if (elevation.password case final String password) password,
     for (final String name in resolved.declared.answers.secretNames)
       if (answers.optionalText(name) case final String value) value,
     for (final ResolvedStep step in resolved.steps)
@@ -411,17 +452,30 @@ Future<int> _runProgram({
   return record.exitCode ?? 1;
 }
 
-/// What the file at [path] says the operator supplied, or nothing when no file was named.
+/// Everything the caller supplies for one run: the answers, and the elevation password where the
+/// installation says the caller is where it comes from.
+typedef CallerInputs = ({Map<String, Object?> answers, String? elevationPassword});
+
+/// What the file at [path] says the caller supplied, or nothing when no file was named.
 ///
 /// A PATH and not the values themselves. A credential handed on the command line stands in the
 /// process listing for every account on the machine, and `Command` has no standard input by design —
 /// so the one thing that crosses argv here is where to read, never what was read.
 ///
-/// Throws [FormatException] when the file is not a JSON object, which is what the caller turns into
-/// a refusal naming the file rather than a stack trace.
-Future<Map<String, Object?>> _answersIn(Machine machine, String? path) async {
+/// **The shape is an envelope, and it is the same one `POST /runs` takes.** The answers stand under
+/// `answers`, and `elevation_password` beside them carries what raises a command to root where the
+/// configuration says the caller hands it over. Two doors into one engine that disagreed about the
+/// shape of a run's inputs would be two things to keep in step, and the client speaks the other one.
+///
+/// A bare object of answers is refused naming the envelope rather than read as one, because guessing
+/// which of the two shapes arrived would misread a program that happens to declare an answer called
+/// `answers`.
+///
+/// Throws [FormatException] when the payload is not that envelope, which is what the caller turns
+/// into a refusal naming the file rather than a stack trace.
+Future<CallerInputs> _inputsIn(Files files, String? path) async {
   if (path == null || path.isEmpty) {
-    return const <String, Object?>{};
+    return (answers: const <String, Object?>{}, elevationPassword: null);
   }
 
   final String text;
@@ -437,27 +491,48 @@ Future<Map<String, Object?>> _answersIn(Machine machine, String? path) async {
       throw const FormatException('--answers - was given and standard input was empty');
     }
   } else {
-    if (!await machine.files.exists(path)) {
+    if (!await files.exists(path)) {
       throw FormatException('there is no file at "$path"');
     }
-    text = await machine.files.read(path);
+    text = await files.read(path);
   }
 
+  final String where = path == '-' ? 'standard input' : '"$path"';
   final Object? parsed = jsonDecode(text);
   if (parsed is! Map<String, Object?>) {
-    final String where = path == '-' ? 'standard input' : '"$path"';
-    throw FormatException('$where holds ${parsed.runtimeType}, and answers are a JSON object');
+    throw FormatException('$where holds ${parsed.runtimeType}, and a run is told by a JSON object');
   }
+  final Object? supplied = parsed['answers'];
+  if (supplied == null) {
+    throw FormatException(
+      '$where holds no "answers", and that is where a run takes what it was told\n'
+      'the shape is {"answers": {...}}, with "elevation_password" beside it where this '
+      'installation says the caller hands the password over',
+    );
+  }
+  if (supplied is! Map<String, Object?>) {
+    throw FormatException(
+      '$where: "answers" holds ${supplied.runtimeType}, and answers are an object',
+    );
+  }
+  final Object? password = parsed['elevation_password'];
+  if (password != null && (password is! String || password.isEmpty)) {
+    throw FormatException('$where: "elevation_password" holds nothing usable');
+  }
+
   // A list arrives as List<dynamic> from the decoder, and every answer that holds a list holds a
   // list of text — so the element type is fixed here rather than left to fail the kind check with a
   // message about a type nobody wrote.
-  return <String, Object?>{
-    for (final MapEntry<String, Object?> answer in parsed.entries)
-      answer.key: switch (answer.value) {
-        final List<Object?> texts => <String>[for (final Object? each in texts) '$each'],
-        final Object? value => value,
-      },
-  };
+  return (
+    answers: <String, Object?>{
+      for (final MapEntry<String, Object?> answer in supplied.entries)
+        answer.key: switch (answer.value) {
+          final List<Object?> texts => <String>[for (final Object? each in texts) '$each'],
+          final Object? value => value,
+        },
+    },
+    elevationPassword: password as String?,
+  );
 }
 
 Mode _modeNamed(String? name) {
