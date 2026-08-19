@@ -75,3 +75,9 @@ version-guard: test/checks/version_guard_test.dart
 # connection — so a refusal placed at that entry takes the whole REST surface away from any
 # installation whose elevation comes from the caller. It did, and nothing noticed.
 subcommands-start: test/checks/subcommands_start_test.dart
+
+# The resident entry of the surface: `serve --listen <address>` binds, announces the port it really
+# stands on, answers the same catalogue over that address, and refuses an address in no accepted
+# shape at start — while `serve` without it still speaks over the session's own stdio, which is how
+# the first installation of every machine reaches it.
+serve-listen: test/checks/serve_listen_test.dart

@@ -44,6 +44,22 @@ Future<void> main(List<String> argv) async {
           'the quietest level this run writes; overrides log_level in the configuration, which is '
           'where it normally stands so that handing this binary its config file is enough',
     )
+    ..addOption(
+      'listen',
+      help:
+          'serve on this address as a resident service instead of over the session\'s own stdio: '
+          'host:port (127.0.0.1:9953, [::1]:9953) or unix:<path>. There is no default, because '
+          'which addresses may reach the surface is the installation\'s decision, not this '
+          'binary\'s',
+    )
+    ..addOption(
+      'service-token-file',
+      help:
+          'the file holding the token every caller on --listen must present. Required with '
+          '--listen and meaningless without it: a session is authenticated by sshd, an address by '
+          'nothing until this says so. The PATH is here and the VALUE never is — a credential on a '
+          'command line stands in every process listing on the machine',
+    )
     ..addOption('role', defaultsTo: 'master', help: 'what this machine is')
     ..addOption('stage', defaultsTo: 'dev')
     ..addOption('fqdn', defaultsTo: '', help: 'the domain name of this installation')
@@ -66,7 +82,7 @@ Future<void> main(List<String> argv) async {
   if (options.flag('help') || rest.isEmpty) {
     stdout
       ..writeln('ansiwise <program> --mode test|dry|run [--answers <file>]')
-      ..writeln('ansiwise serve')
+      ..writeln('ansiwise serve [--listen <address>]')
       ..writeln()
       ..writeln(parser.usage);
     exit(rest.isEmpty && !options.flag('help') ? 64 : 0);
@@ -279,9 +295,63 @@ Future<void> _serve({
     events: EventsEndpoint(store: store, json: const RecordCodec()),
   );
 
+  // Two ways in, chosen by the caller. The channel form is how the operator app reaches a machine
+  // it has an SSH session on — including the FIRST installation, where no service exists yet to
+  // listen — and stays the default. The listening form is what an installed machine runs as a
+  // resident service, so a manager can start a run and come back to it without holding a session
+  // open for the whole of it.
+  if (options.option('listen') case final String address) {
+    // READ BEFORE THE BIND, so a machine whose token was never placed refuses to start rather than
+    // standing on an address while nothing guards it. There is no default and no way to waive it:
+    // the constructor below takes a token, not an optional one.
+    final ServiceToken token;
+    try {
+      final String? path = options.option('service-token-file');
+      if (path == null || path.isEmpty) {
+        stderr.writeln(
+          '--listen needs --service-token-file: an address is authenticated by nothing',
+        );
+        stderr.writeln('a session is authenticated by sshd; an address is authenticated by this');
+        exit(64);
+      }
+      token = ServiceToken.fromFile(path);
+    } on FileSystemException catch (missing) {
+      stderr.writeln('the service token cannot be read: ${missing.message} (${missing.path})');
+      exit(78);
+      // An empty token file is refused by the token itself, as a StateError. Caught because on this
+      // path it is not a fault of the code but a machine whose token was never written — and the
+      // operator has to read that as the machine's state, not as a crash.
+      // ignore: avoid_catching_errors
+    } on StateError catch (empty) {
+      stderr.writeln(empty.message);
+      exit(78);
+    }
+
+    try {
+      await ListeningHttpServer(api, address: address, token: token).serve(
+        // Written once the bind stands, because that is when the port is a fact: an address asked
+        // for as port 0 is answered with the port the operating system chose, and a service's
+        // journal says where the surface actually is rather than where it was asked to be.
+        onBound: (HttpServer bound) => stdout.writeln('serving on ${_boundName(bound)}'),
+      );
+    } on FormatException catch (bad) {
+      stderr.writeln(bad.message);
+      exit(64);
+    } on SocketException catch (bad) {
+      stderr.writeln('cannot serve on "$address": ${bad.message}');
+      exit(69);
+    }
+    return;
+  }
+
   // The session's own standard input and output are the connection. Nothing listens.
   await ChannelHttpServer(api, incoming: stdin, outgoing: stdout).serve();
 }
+
+/// Where [bound] stands, as a caller would dial it: `host:port`, or the path of a socket file.
+String _boundName(HttpServer bound) => bound.address.type == InternetAddressType.unix
+    ? bound.address.address
+    : '${bound.address.address}:${bound.port}';
 
 Future<int> _runProgram({
   required bool requireDryRun,
