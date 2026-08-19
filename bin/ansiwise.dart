@@ -680,29 +680,17 @@ Map<String, Object?> _withElevationPassword(
   ElevationSource? source,
 ) {
   final bool wanted = resolved.declared.answers.specs.any(
-    (ArgumentSpec spec) => spec.name == elevationPasswordAnswer,
+    (ArgumentSpec spec) => spec.name == CallerInputs.elevationPasswordField,
   );
-  if (inputs.answers.containsKey(elevationPasswordAnswer)) {
+  if (wanted && source is! ElevationFromCaller) {
     throw const ElevationUnavailable(
-      'the answers carry "$elevationPasswordAnswer", and that name holds the password this run was '
-      'started with — it is not an answer anybody sends\n'
-      'send it once, beside the answers, and the run fills it in for the program that asked',
-    );
-  }
-  if (!wanted) {
-    return inputs.answers;
-  }
-  if (source is! ElevationFromCaller) {
-    throw const ElevationUnavailable(
-      'this program declares the answer "$elevationPasswordAnswer", which is filled from the '
-      'password the caller hands over — and this installation does not take it from the caller\n'
+      'this program declares the answer "${CallerInputs.elevationPasswordField}", which is filled '
+      'from the password the caller hands over — and this installation does not take it from the '
+      'caller\n'
       'say "elevation: {password_from_caller: true}" in the configuration, or stop declaring it',
     );
   }
-  if (inputs.elevationPassword case final String password) {
-    return <String, Object?>{...inputs.answers, elevationPasswordAnswer: password};
-  }
-  return inputs.answers;
+  return inputs.filledFor(resolved.declared.answers);
 }
 
 /// The one name a program writes when it wants the password this run was started with.
