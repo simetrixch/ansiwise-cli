@@ -4,6 +4,9 @@ import 'dart:io';
 import 'package:ansiwise_checks_tree/ansiwise_checks_tree.dart';
 import 'package:test/test.dart';
 
+/// How a line of a hand-built request ends on the wire.
+const String crlf = '\r\n';
+
 /// subcommands-start — every subcommand that executes no step starts under the installation's own
 /// configuration.
 ///
@@ -87,5 +90,42 @@ Future<void> main() async {
       expect(answered.exitCode, 78);
       expect(answered.stderr, contains('raises a command to root'));
     }, timeout: const Timeout(Duration(minutes: 2)));
+    test('serve ANSWERS over its own stdio, which is the door every first installation uses', () async {
+      // Starting is not answering, and for a while it was only starting. The server socket handed
+      // out its one connection from a stream that ended in the same turn, so the request arrived at
+      // a server that had already shut: serve wrote nothing, exited zero, and said nothing. Only a
+      // request written into a real process catches that — a test that feeds the connection from a
+      // queued controller wins the race the real thing always loses.
+      final Process session = await Process.start('dart', <String>[
+        'run',
+        'bin/ansiwise.dart',
+        'serve',
+        '--programs',
+        programs,
+        '--config',
+        configuration,
+      ], workingDirectory: Directory.current.path);
+
+      session.stdin.write('GET /programs HTTP/1.1');
+      session.stdin.write(crlf);
+      session.stdin.write('Host: m');
+      session.stdin.write(crlf);
+      session.stdin.write(crlf);
+      await session.stdin.flush();
+
+      final Future<String> answered = utf8.decodeStream(session.stdout);
+      // The channel closes the way a session closes, which is also what must end the process.
+      await Future<void>.delayed(const Duration(seconds: 3));
+      await session.stdin.close();
+
+      final String said = await answered;
+      expect(said, startsWith('HTTP/1.1 200'), reason: 'the door was mute');
+      expect(said, contains('deploy-host'), reason: 'it answered, but not with this installation');
+      expect(
+        await session.exitCode.timeout(const Duration(seconds: 20)),
+        0,
+        reason: 'the channel closed and the process stayed — one left behind per session',
+      );
+    }, timeout: const Timeout(Duration(minutes: 3)));
   });
 }
