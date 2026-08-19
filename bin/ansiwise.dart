@@ -93,6 +93,10 @@ Future<void> main(List<String> argv) async {
   // answer validation because one of the two elevation routes is in it, and elevation is settled
   // before the shell that carries it exists.
   CallerInputs inputs = (answers: const <String, Object?>{}, elevationPassword: null);
+  // WHICH route this installation named, kept beside the password itself. The two are not the same
+  // question: a run may hold no password because none was handed over, and only the route says
+  // whether that is a refusal or an installation whose steps never need root.
+  ElevationSource? elevationSource;
   // The configuration decides it and the command line overrides it, which is the ordinary
   // precedence: the file is what this installation always wants, the flag is what this one run
   // wants. Declared here so a refusal below cannot leave it unset.
@@ -128,23 +132,24 @@ Future<void> main(List<String> argv) async {
       unwindDisabledBy = 'no_unwind: true in $configuration';
     }
     // Read at start-up and not at the first command that needs root. An installation whose password
-    // is missing learns it before anything has been looked at, rather than halfway through a run
-    // that has already changed the machine — and that holds for both routes, which is why the
-    // caller's inputs are read here rather than beside the answers they also carry.
+    // FILE is missing learns it before anything has been looked at, rather than halfway through a
+    // run that has already changed the machine.
+    //
+    // **THE CALLER'S ROUTE IS RESOLVED HERE AND REFUSED ELSEWHERE, and that is not a lapse.** This
+    // is the entry of every subcommand, and `serve` is one of them: it holds no password because it
+    // executes no step — it starts a detached child per run, and the child is handed its own
+    // password with its own answers. A refusal here would mean the surface cannot start on the very
+    // installations that chose this route, which is what it did until this line was written. What
+    // refuses a run with no password is the run path, where a step is about to be taken.
     inputs = await _inputsIn(files, options.option('answers'));
+    elevationSource = active.elevation;
     elevation = switch (active.elevation) {
       null => const Elevation.unconfigured(),
       ElevationFromFile(:final String path) => await Elevation.read(files: files, path: path),
-      ElevationFromCaller() => Elevation.of(
-        inputs.elevationPassword ??
-            (throw ElevationUnavailable(
-              'this installation says the caller hands over the password that raises a command to '
-              'root, and none arrived\n'
-              'put it beside the answers as "elevation_password", or name a password_file in '
-              '$configuration where this machine is to hold one',
-            )),
-        from: 'the caller',
-      ),
+      ElevationFromCaller() => switch (inputs.elevationPassword) {
+        final String password => Elevation.of(password, from: 'the caller'),
+        null => const Elevation.unconfigured(),
+      },
     };
     if (inputs.elevationPassword != null && active.elevation is! ElevationFromCaller) {
       // A password handed to a run that will not use it is a credential somebody believes is in
@@ -237,8 +242,9 @@ Future<void> main(List<String> argv) async {
       logLevel: logLevel,
       inputs: inputs,
       // Handed on so the password that raises a command to root is redacted like any other secret,
-      // whichever route it came by.
+      // whichever route it came by, and so a run can refuse when the route named one and none came.
       elevation: elevation,
+      elevationSource: elevationSource,
       // Handed on so the answer conditions can be measured before the answers are checked.
       registry: registry,
       requireDryRun: requireDryRun,
@@ -289,6 +295,7 @@ Future<int> _runProgram({
   required LogLevel logLevel,
   required CallerInputs inputs,
   required Elevation elevation,
+  required ElevationSource? elevationSource,
   required Registry registry,
   required String? unwindDisabledBy,
 }) async {
@@ -299,6 +306,21 @@ Future<int> _runProgram({
       'there is: ${catalogue.programs.map((ResolvedProgram p) => p.declared.name).join(', ')}',
     );
     return 65;
+  }
+
+  // Where the caller's route is refused, and it is refused HERE because here is where a step is
+  // about to be taken. The process entry cannot refuse it: `serve` comes through the same entry and
+  // holds no password by design, since it executes nothing itself.
+  if (elevationSource is ElevationFromCaller && elevation.password == null) {
+    stderr.writeln(
+      'this installation says the caller hands over the password that raises a command to root, '
+      'and none arrived',
+    );
+    stderr.writeln(
+      'put it beside the answers as "elevation_password", or name a password_file in the '
+      'configuration where this machine is to hold one',
+    );
+    return 78;
   }
 
   final Mode mode = _modeNamed(options.option('mode'));
