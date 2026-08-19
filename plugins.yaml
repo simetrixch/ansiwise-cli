@@ -21,3 +21,4 @@ ansiwise_git               GitPlugin
 ansiwise_authentik         AuthentikPlugin
 ansiwise_cloudflare        CloudflarePlugin
 ansiwise_versions          VersionsPlugin
+ansiwise_headscale         HeadscalePlugin

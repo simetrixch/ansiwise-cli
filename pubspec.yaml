@@ -65,6 +65,11 @@ dependencies:
       url: https://github.com/simetrixch/ansiwise-plugins.git
       ref: master
       path: ansiwise-versions
+  ansiwise_headscale:
+    git:
+      url: https://github.com/simetrixch/ansiwise-plugins.git
+      ref: master
+      path: ansiwise-headscale
   args: ^2.7.0
 
 dev_dependencies:
