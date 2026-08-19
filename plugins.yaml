@@ -19,3 +19,5 @@ ansiwise_vault_kubernetes  VaultKubernetesPlugin
 ansiwise_helm              HelmPlugin
 ansiwise_git               GitPlugin
 ansiwise_authentik         AuthentikPlugin
+ansiwise_cloudflare        CloudflarePlugin
+ansiwise_versions          VersionsPlugin
