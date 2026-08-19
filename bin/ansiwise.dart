@@ -285,7 +285,7 @@ Future<void> _serve({
       launcher: DetachedLauncher(
         executable: Platform.resolvedExecutable,
         workingDirectory: Directory.current.path,
-        newRunId: () => _newRunId(machine.clock),
+        newRunId: () => _newRunId(machine),
       ),
       catalogue: catalogue,
       gate: Gate(store, requireDryRun: requireDryRun),
@@ -456,7 +456,7 @@ Future<int> _runProgram({
   }
 
   final String? chosen = options.option('run');
-  final RunId id = chosen == null || chosen.isEmpty ? _newRunId(machine.clock) : RunId(chosen);
+  final RunId id = chosen == null || chosen.isEmpty ? _newRunId(machine) : RunId(chosen);
 
   // Resuming runs the same program again rather than skipping to a remembered position. Every step
   // that already did its work answers that there is nothing to do, and a machine somebody touched
@@ -638,10 +638,15 @@ Mode _modeNamed(String? name) {
   return Mode.test;
 }
 
-RunId _newRunId(Clock clock) {
-  final DateTime now = clock.now();
+RunId _newRunId(Machine machine) {
+  final DateTime now = machine.clock.now();
   final String stamp = now.toIso8601String().replaceAll(RegExp(r'[-:.]'), '').split('T').join('T');
-  return RunId('${stamp.substring(0, 15)}Z-$pid');
+  // THE STAMP AND THE PROCESS ARE NOT ENOUGH, and it took a resident service to show it. A stamp
+  // reaching seconds and the process id identify a run uniquely only while one process starts at
+  // most one run per second — true of a person at a command line, false of a service a manager
+  // drives: two runs asked for in the same second came back with ONE id and wrote over each other's
+  // record. Four random bytes are what make the id the run's own rather than the second's.
+  return RunId('${stamp.substring(0, 15)}Z-$pid-${machine.entropy.hex(4)}');
 }
 
 /// The commit this installation's branch is on, which is part of what makes an input the same.
