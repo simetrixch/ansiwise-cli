@@ -108,7 +108,7 @@ Future<void> main(List<String> argv) async {
   // What the caller supplied for this run, read once. It is read up here rather than beside the
   // answer validation because one of the two elevation routes is in it, and elevation is settled
   // before the shell that carries it exists.
-  CallerInputs inputs = (answers: const <String, Object?>{}, elevationPassword: null);
+  CallerInputs inputs = const CallerInputs.none();
   // WHICH route this installation named, kept beside the password itself. The two are not the same
   // question: a run may hold no password because none was handed over, and only the route says
   // whether that is a refusal or an installation whose steps never need root.
@@ -550,10 +550,6 @@ Future<int> _runProgram({
   return record.exitCode ?? 1;
 }
 
-/// Everything the caller supplies for one run: the answers, and the elevation password where the
-/// installation says the caller is where it comes from.
-typedef CallerInputs = ({Map<String, Object?> answers, String? elevationPassword});
-
 /// What the file at [path] says the caller supplied, or nothing when no file was named.
 ///
 /// A PATH and not the values themselves. A credential handed on the command line stands in the
@@ -573,7 +569,7 @@ typedef CallerInputs = ({Map<String, Object?> answers, String? elevationPassword
 /// into a refusal naming the file rather than a stack trace.
 Future<CallerInputs> _inputsIn(Files files, String? path) async {
   if (path == null || path.isEmpty) {
-    return (answers: const <String, Object?>{}, elevationPassword: null);
+    return const CallerInputs.none();
   }
 
   final String text;
@@ -597,40 +593,35 @@ Future<CallerInputs> _inputsIn(Files files, String? path) async {
 
   final String where = path == '-' ? 'standard input' : '"$path"';
   final Object? parsed = jsonDecode(text);
-  if (parsed is! Map<String, Object?>) {
-    throw FormatException('$where holds ${parsed.runtimeType}, and a run is told by a JSON object');
-  }
-  final Object? supplied = parsed['answers'];
-  if (supplied == null) {
-    throw FormatException(
-      '$where holds no "answers", and that is where a run takes what it was told\n'
-      'the shape is {"answers": {...}}, with "elevation_password" beside it where this '
-      'installation says the caller hands the password over',
-    );
-  }
-  if (supplied is! Map<String, Object?>) {
-    throw FormatException(
-      '$where: "answers" holds ${supplied.runtimeType}, and answers are an object',
-    );
-  }
-  final Object? password = parsed['elevation_password'];
-  if (password != null && (password is! String || password.isEmpty)) {
-    throw FormatException('$where: "elevation_password" holds nothing usable');
+
+  // THE ONE READER, in the framework. The other door into this engine reads the same envelope with
+  // the same call, which is what stops the two from learning things separately — three defects in
+  // one day came out of each of them describing the shape itself.
+  //
+  // WHAT THIS DOOR ADDS is the one judgement only it can make: here the payload is WHOLLY the
+  // envelope, so anything standing beside it is the older bare shape and is refused by name. The
+  // API's body cannot say that — it carries the program and the mode there too.
+  if (parsed is Map<String, Object?>) {
+    final List<String> strangers = <String>[
+      for (final String key in parsed.keys)
+        if (key != CallerInputs.answersField && key != CallerInputs.elevationPasswordField) key,
+    ];
+    if (strangers.isNotEmpty) {
+      throw FormatException(
+        '$where carries ${strangers.map((String each) => '"$each"').join(', ')} beside the envelope, '
+        'and a run is told by {"answers": {...}} with "elevation_password" next to it\n'
+        'the answers go INSIDE "answers" — a bare map of them was the older shape and is not read as '
+        'one any more, because guessing between the two would misread a program that declares an '
+        'answer called "answers"',
+      );
+    }
   }
 
-  // A list arrives as List<dynamic> from the decoder, and every answer that holds a list holds a
-  // list of text — so the element type is fixed here rather than left to fail the kind check with a
-  // message about a type nobody wrote.
-  return (
-    answers: <String, Object?>{
-      for (final MapEntry<String, Object?> answer in supplied.entries)
-        answer.key: switch (answer.value) {
-          final List<Object?> texts => <String>[for (final Object? each in texts) '$each'],
-          final Object? value => value,
-        },
-    },
-    elevationPassword: password as String?,
-  );
+  try {
+    return CallerInputs.of(parsed, where: where);
+  } on InputsRejected catch (refused) {
+    throw FormatException(refused.message);
+  }
 }
 
 Mode _modeNamed(String? name) {
