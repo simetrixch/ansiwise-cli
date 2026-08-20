@@ -10,6 +10,8 @@ import 'package:args/args.dart';
 import 'package:ansiwise_core/ansiwise_core.dart';
 import 'package:ansiwise_rest/ansiwise_rest.dart';
 import 'package:ansiwise_cli/plugins.dart';
+import 'package:ansiwise_cli/service_installation.dart';
+import 'package:ansiwise_cli/service_unit.dart';
 
 Future<void> main(List<String> argv) async {
   final ArgParser parser = ArgParser()
@@ -50,7 +52,9 @@ Future<void> main(List<String> argv) async {
           'serve on this address as a resident service instead of over the session\'s own stdio: '
           'host:port (127.0.0.1:9953, [::1]:9953) or unix:<path>. There is no default, because '
           'which addresses may reach the surface is the installation\'s decision, not this '
-          'binary\'s',
+          'binary\'s. `install-service` is given the same address and writes it into the unit it '
+          'places, where the accepted shapes are narrower — a service nobody can reach is worth '
+          'less than a refusal',
     )
     ..addOption(
       'service-token-file',
@@ -58,7 +62,8 @@ Future<void> main(List<String> argv) async {
           'the file holding the token every caller on --listen must present. Required with '
           '--listen and meaningless without it: a session is authenticated by sshd, an address by '
           'nothing until this says so. The PATH is here and the VALUE never is — a credential on a '
-          'command line stands in every process listing on the machine',
+          'command line stands in every process listing on the machine. `install-service` is the '
+          'one that puts the value there, and it is told it on standard input',
     )
     ..addOption('role', defaultsTo: 'master', help: 'what this machine is')
     ..addOption('stage', defaultsTo: 'dev')
@@ -83,6 +88,9 @@ Future<void> main(List<String> argv) async {
     stdout
       ..writeln('ansiwise <program> --mode test|dry|run [--answers <file>]')
       ..writeln('ansiwise serve [--listen <address>]')
+      ..writeln(
+        'ansiwise install-service --listen <address> --service-token-file <path> --answers -',
+      )
       ..writeln()
       ..writeln(parser.usage);
     exit(rest.isEmpty && !options.flag('help') ? 64 : 0);
@@ -246,6 +254,21 @@ Future<void> main(List<String> argv) async {
     return;
   }
 
+  // Reached with the catalogue already loaded, which is the point of installing from here: the
+  // service is only placed on a machine whose programs resolve against the plugins this binary
+  // carries, rather than started at boot and found broken at the first request.
+  if (rest.first == 'install-service') {
+    exit(
+      await _installService(
+        machine: machine,
+        options: options,
+        inputs: inputs,
+        elevation: elevation,
+        elevationSource: elevationSource,
+      ),
+    );
+  }
+
   exit(
     await _runProgram(
       machine: machine,
@@ -353,6 +376,174 @@ String _boundName(HttpServer bound) => bound.address.type == InternetAddressType
     ? bound.address.address
     : '${bound.address.address}:${bound.port}';
 
+/// Places the service that makes this binary reachable after the machine restarts, and returns the
+/// exit code the process ends with.
+///
+/// **THE ORDER IS THE TOKEN, THEN THE UNIT, THEN THE SWITCH.** The service refuses to start without
+/// a token it can read, so a unit enabled before the file existed would come up failed and restart
+/// until somebody noticed. Everything the surface needs is on the machine before the service
+/// manager is told the service exists.
+///
+/// **The token arrives on standard input and never as a file or an argument.** A value on a command
+/// line stands in every process listing on the machine, and a file of it beside the installation
+/// would outlive this call with nobody left to remove it. The envelope is the one both doors into
+/// this engine take, so the operator app writes what it already knows how to write.
+Future<int> _installService({
+  required Machine machine,
+  required ArgResults options,
+  required CallerInputs inputs,
+  required Elevation elevation,
+  required ElevationSource? elevationSource,
+}) async {
+  // Refused here for the reason a run refuses it here: this is where a command that has to run as
+  // root is about to be taken, and every file this places belongs to root.
+  if (_elevationRefusal(elevationSource, elevation) case final String refused) {
+    stderr.writeln(refused);
+    return 78;
+  }
+
+  if (options.option('answers') != '-') {
+    stderr.writeln(
+      'install-service is told the service token on standard input: --answers - carrying '
+      '{"answers": {"$serviceTokenAnswer": "..."}}',
+    );
+    stderr.writeln(
+      'a file of it would outlive this call with nobody left to remove it, and a value on the '
+      'command line stands in every process listing on the machine',
+    );
+    return 64;
+  }
+
+  final Object? supplied = inputs.answers[serviceTokenAnswer];
+  final String token = supplied is String ? supplied.trim() : '';
+  if (token.isEmpty) {
+    stderr.writeln(
+      'no "$serviceTokenAnswer" arrived on standard input, and it is the whole authentication of '
+      'the surface on an address',
+    );
+    stderr.writeln('a machine whose token was never placed must refuse to serve, not serve openly');
+    return 64;
+  }
+
+  final String listen = options.option('listen') ?? '';
+  final String tokenFile = options.option('service-token-file') ?? '';
+  if (listen.isEmpty || tokenFile.isEmpty) {
+    stderr.writeln(
+      'install-service needs --listen and --service-token-file: they are what the unit starts the '
+      'service with, and there is no default for either',
+    );
+    return 64;
+  }
+
+  final ServiceInstallation installation = ServiceInstallation(
+    unit: serviceUnit,
+    executable: Platform.resolvedExecutable,
+    startedFrom: Platform.script.toFilePath(),
+    listen: listen,
+    serviceTokenFile: tokenFile,
+    programs: options.option('programs') ?? 'programs',
+    config: options.option('config') ?? Configuration.defaultFileName,
+    runs: options.option('runs') ?? RunDirectory.defaultRoot,
+    // The service resolves every relative path above from the same place this call did, so a
+    // machine installed from its catalogue keeps working when the paths were written relative.
+    workingDirectory: Directory.current.path,
+  );
+
+  final String unit;
+  try {
+    unit = installation.render();
+  } on ServiceInstallationRefused catch (refused) {
+    stderr.writeln(refused.because);
+    return 64;
+  }
+
+  try {
+    // The directory first: an elevated write copies a file into place and creates no parent for it.
+    if (installation.tokenDirectory case final String held) {
+      await machine.files.createDirectory(
+        held,
+        mode: ServiceInstallation.tokenDirectoryMode,
+        elevated: true,
+      );
+    }
+    await machine.files.write(
+      tokenFile,
+      token,
+      mode: ServiceInstallation.tokenFileMode,
+      elevated: true,
+    );
+    await machine.files.write(
+      installation.unitPath,
+      unit,
+      mode: ServiceInstallation.unitMode,
+      elevated: true,
+    );
+    // The service manager reads its directory once at start-up and once when it is told to. A file
+    // written without telling it is a service that does not exist as far as it is concerned.
+    await _mustRun(machine, const <String>['systemctl', 'daemon-reload']);
+    // Enabled AND started: the first is what makes it come back after a restart, the second is what
+    // makes it answer now, and either is true without the other.
+    await _mustRun(machine, <String>['systemctl', 'enable', '--now', serviceUnitName]);
+  } on ElevationUnavailable catch (refused) {
+    stderr.writeln(refused.message);
+    return 78;
+  } on CommandFailed catch (failed) {
+    stderr.writeln('the machine did not carry the installation out: $failed');
+    return 69;
+  } on FileSystemException catch (failed) {
+    stderr.writeln('the machine did not carry the installation out: ${failed.message}');
+    return 69;
+  }
+
+  // ASKED AND REPORTED, never assumed. Enabling a unit says it comes back after a restart; it does
+  // not say the service is answering, and the ordinary reason it is not yet is an address that is
+  // not on the machine at this second.
+  final CommandResult standing = await machine.shell.run(
+    const Command.observing('systemctl', arguments: <String>['is-active', serviceUnitName]),
+  );
+  stdout
+    ..writeln('${installation.unitPath} is written and $serviceUnitName comes back after a restart')
+    ..writeln('the service token stands at $tokenFile, readable by root alone')
+    ..writeln('$serviceUnitName is ${standing.trimmed}')
+    ..writeln(
+      standing.trimmed == 'active'
+          ? 'the surface answers on $listen'
+          : 'it is not answering on "$listen" yet, and the unit is restarted until that address can '
+                'be bound — which is what a machine does until its tailnet address is there',
+    );
+  return 0;
+}
+
+/// Runs [argv] as root, and throws [CommandFailed] carrying what the machine said when it refused.
+Future<void> _mustRun(Machine machine, List<String> argv) async {
+  final CommandResult answer = await machine.shell.run(
+    Command.detailed(argv.first, arguments: argv.sublist(1), elevated: true),
+  );
+  if (!answer.ok) {
+    throw CommandFailed(
+      argv: argv,
+      exitCode: answer.exitCode,
+      stdout: answer.stdout,
+      stderr: answer.stderr,
+    );
+  }
+}
+
+/// Why nothing here can raise a command to root, or null where something can.
+///
+/// One wording for both callers. An installation that named the caller's route and was handed
+/// nothing is the same state whether a run or an installation of the service met it, and two
+/// wordings of it are two things to keep in step.
+String? _elevationRefusal(ElevationSource? source, Elevation elevation) {
+  if (source is! ElevationFromCaller || elevation.password != null) {
+    return null;
+  }
+  return 'this installation says the caller hands over the password that raises a command to root, '
+      'and none arrived\n'
+      'put it beside the answers as "${CallerInputs.elevationPasswordField}", or name a '
+      'password_file in the configuration where this machine is to hold one';
+}
+
 Future<int> _runProgram({
   required bool requireDryRun,
   required Machine machine,
@@ -381,15 +572,8 @@ Future<int> _runProgram({
   // Where the caller's route is refused, and it is refused HERE because here is where a step is
   // about to be taken. The process entry cannot refuse it: `serve` comes through the same entry and
   // holds no password by design, since it executes nothing itself.
-  if (elevationSource is ElevationFromCaller && elevation.password == null) {
-    stderr.writeln(
-      'this installation says the caller hands over the password that raises a command to root, '
-      'and none arrived',
-    );
-    stderr.writeln(
-      'put it beside the answers as "elevation_password", or name a password_file in the '
-      'configuration where this machine is to hold one',
-    );
+  if (_elevationRefusal(elevationSource, elevation) case final String refused) {
+    stderr.writeln(refused);
     return 78;
   }
 
@@ -698,3 +882,10 @@ Map<String, Object?> _withElevationPassword(
 /// The same word the envelope uses, on purpose: a value that is called two things is a value two
 /// people describe differently in the same conversation.
 const String elevationPasswordAnswer = 'elevation_password';
+
+/// The name `install-service` is told the service token under, inside the envelope.
+///
+/// Inside the envelope's answers rather than beside them, because the envelope's other field holds
+/// the password that raises a command to root and both are needed in the same call: the token is
+/// what the installation is told, the password is what lets it write.
+const String serviceTokenAnswer = 'service_token';

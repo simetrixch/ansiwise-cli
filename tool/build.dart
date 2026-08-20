@@ -12,6 +12,7 @@ import 'gate/binary_build.dart';
 import 'gate/plugin_set.dart';
 import 'gate/paths.dart';
 import 'gate/real_dart_toolchain.dart';
+import 'gate/service_unit.dart';
 
 Future<void> main(List<String> arguments) async {
   if (arguments.length > 1) {
@@ -25,6 +26,12 @@ Future<void> main(List<String> arguments) async {
   final String package = packageOfToolScript(Platform.script).path;
   if (writePluginSet(package)) {
     stdout.writeln('wrote lib/plugins.dart from plugins.yaml');
+  }
+
+  // The unit the binary places on a machine, for the same reason and at the same moment: it is
+  // carried inside the executable, so the compiler has to see it before it compiles anything.
+  if (writeServiceUnitSource(package)) {
+    stdout.writeln('wrote lib/service_unit.dart from $serviceUnitFileName');
   }
 
   final BinaryBuild build = BinaryBuild(toolchain: const RealDartToolchain(), package: package);

@@ -81,3 +81,9 @@ subcommands-start: test/checks/subcommands_start_test.dart
 # shape at start — while `serve` without it still speaks over the session's own stdio, which is how
 # the first installation of every machine reaches it.
 serve-listen: test/checks/serve_listen_test.dart
+
+# The unit that makes the surface outlive the session that installed it: lib/service_unit.dart is
+# what ansiwise.service says, the rendering is pulled in at boot, restarts when it dies and keeps
+# its detached runs, the address is inside the tailnet range, and the command the unit starts is a
+# command this binary parses — which a unit written anywhere else stops being without a word.
+service-unit: test/checks/service_unit_test.dart
