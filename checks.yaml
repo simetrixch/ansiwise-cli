@@ -82,6 +82,12 @@ subcommands-start: test/checks/subcommands_start_test.dart
 # the first installation of every machine reaches it.
 serve-listen: test/checks/serve_listen_test.dart
 
+# Every option the launcher composes for a detached run is one this binary declares, and the one
+# carrying a waived gate reaches the header. The composing lives in the framework and the parsing
+# lives here, so the two meet in no process but a run on a machine — where the refusal is a usage
+# exit nobody is watching, with the reason two repositories away.
+launcher-options: test/checks/launcher_options_test.dart
+
 # The unit that makes the surface outlive the session that installed it: lib/service_unit.dart is
 # what ansiwise.service says, the rendering is pulled in at boot, restarts when it dies and keeps
 # its detached runs, the address is inside the tailnet range, and the command the unit starts is a

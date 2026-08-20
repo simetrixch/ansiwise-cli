@@ -22,6 +22,17 @@ Future<void> main(List<String> argv) async {
     )
     ..addOption('run', help: 'the identifier of this run, when something else chose it')
     ..addOption('resume', help: 'the identifier of a run this one continues')
+    ..addMultiOption(
+      'waived',
+      allowed: <String>[for (final Mode mode in Mode.values) mode.flag],
+      help:
+          'a proof this run is going without, named by the mode that would have produced it, once '
+          'per waiver. Typed here it is the operator\'s own declaration: this command line writes '
+          'what it is given into the run\'s header and does not ask the gate whether that is what '
+          'it waived. Composed rather than typed when the run was started over the API, where the '
+          'launcher writes one per gate that installation waived. An absent proof and a waived one '
+          'look identical from the outside, and only one of them was somebody\'s choice',
+    )
     ..addOption('programs', defaultsTo: 'programs', help: 'where the program files are')
     ..addOption(
       'config',
@@ -680,6 +691,7 @@ Future<int> _runProgram({
     commit: commit,
     fingerprint: fingerprint,
     resumes: resumes,
+    waived: _waivedIn(options),
   );
 
   // Built from the VALUES of everything declared secret, on BOTH surfaces a value arrives by.
@@ -807,6 +819,17 @@ Future<CallerInputs> _inputsIn(Files files, String? path) async {
     throw FormatException(refused.message);
   }
 }
+
+/// The proofs the run was started without, as the command line names them.
+///
+/// Every value is one of [Mode.flag] — the parser refuses the rest — so a name that is not a mode
+/// cannot reach here, and the lookup throws rather than falling back where one somehow did. The
+/// fallback [_modeNamed] has is right for `--mode`, where the safe mode is the sensible answer to
+/// silence; here it would turn a name nobody meant into a waiver the header states as a fact.
+List<Mode> _waivedIn(ArgResults options) => <Mode>[
+  for (final String flag in options.multiOption('waived'))
+    Mode.values.firstWhere((Mode each) => each.flag == flag),
+];
 
 Mode _modeNamed(String? name) {
   for (final Mode mode in Mode.values) {
