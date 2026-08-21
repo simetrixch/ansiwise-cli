@@ -1,0 +1,201 @@
+# release — a pushed tag becomes a GitHub Release carrying the binary a machine is given.
+#
+# WHAT STARTS IT. A pushed tag, and nothing else. The tag is pushed by hand, and the version in it
+# is typed by a person: which release a change deserves is a decision, and nothing here takes it.
+#
+# WHAT THE ARTEFACT IS, and why it is one file rather than an archive. hostyour-manager's
+# place-ansiwise fetches it with `curl -fsSL "$downloadUrl" -o "$tmp"` and installs THAT file with
+# `install -m0755` as /usr/local/bin/ansiwise-<version>
+# (hostyour-manager/server/domains/runs/defs/place-ansiwise.ts). It unpacks nothing, so what is
+# attached here is the executable itself. The upload-artifact/download-artifact pair between the
+# build job and the publish job drops the executable bit — it carries files through a zip — and that
+# reaches nothing: the mode on the machine is the one `install -m0755` writes.
+#
+# WHICH SYSTEM IT IS BUILT FOR. linux-x64, and only that one. `dart compile exe` produces a binary
+# for the system it runs on, so each target would be a runner of its own — as the three of
+# ansiwise-client are. THREE PLACES TAKE THIS FILE and every one of them is a Linux machine:
+# hostyour-manager's place-ansiwise fetches it with `curl -fsSL` onto the fresh Ubuntu that
+# hostyour-cloud platform/versions.yaml's `ubuntu` pin names; digita-deploy
+# ansiwise/programs/deploy-cluster.yaml:714-719 fetches it again on that same machine as an
+# `install_pinned_tool` row — which asks today for `ansiwise-linux-amd64` under a `v0.1.0` tag, a
+# name this workflow does not attach and a tag its filter at `on.push.tags` cannot even produce; and
+# ansiwise-client places it from bytes an operator hands over (`MachineBinary.bytes`,
+# lib/infrastructure/session_transport.dart:146-171), fetching nothing itself. Nobody takes a Windows
+# or a macOS build — a developer on either runs `dart run bin/ansiwise.dart` out of this checkout —
+# so a second and a third runner would attach files no caller asks for. linux-arm64 is not built
+# either: GitHub's arm64 runners are not offered to a private repository, and an artefact this
+# workflow cannot produce must not be named in a release as though it could.
+#
+# THE VERSION REACHES NOTHING INSIDE THE BINARY, and that is not an omission. The binary takes no
+# --version flag; what says which version stands on a machine is the NAME of the file the
+# /usr/local/bin/ansiwise symlink points at, which place-ansiwise writes itself from the pin it read
+# (place-ansiwise.ts, `ANSIWISE_BINARY_LINK`). So the tag is carried by the artefact's name and by
+# this release, and a --build-name equivalent would be a second statement of it with nothing reading
+# it.
+#
+# THE DART VERSION IS NOT WRITTEN HERE. tool/gate/pins.dart names the one SDK the checks are true
+# against, and both jobs that install one read it from there in the step after their checkout, so
+# neither can build with a Dart the checks never met. tool/gate/version_guard.dart then refuses the
+# run when the installed SDK is a different one, which is what makes the read provable rather than
+# hopeful.
+name: release
+
+on:
+  push:
+    tags:
+      # The same grammar ansiwise-client releases under: semantic versioning, with a pre-release
+      # after the hyphen. This matches 0.1.0, 0.1.0-alpha and 0.1.0-beta.2 alike.
+      - '[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: the gate
+    runs-on: ubuntu-latest
+    # The credential is carried as an environment value of the job rather than read in the step that
+    # uses it, because the step is CONDITIONAL on whether one was given and `secrets` is not a
+    # context a step's `if` may read — `env` is.
+    env:
+      DEPS_TOKEN: ${{ secrets.ANSIWISE_DEPS_READ_PAT }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: pin
+        name: read the pinned Dart version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n "s/^const String dartVersion = '\(.*\)';\$/\1/p" tool/gate/pins.dart)"
+          test -n "$version"
+          echo "dart=$version" >> "$GITHUB_OUTPUT"
+          echo "tool/gate/pins.dart pins Dart $version"
+
+      - uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+        with:
+          sdk: ${{ steps.pin.outputs.dart }}
+
+      # THE DEPENDENCIES THIS PACKAGE RESOLVES ARE IN OTHER REPOSITORIES, and two of them are
+      # private. pubspec.yaml names ansiwise-core and ansiwise-rest, which are public, and
+      # ansiwise-plugins (ten packages, pubspec.yaml:23-72) and ansiwise-checks, which are not. `dart pub get` clones
+      # each with the git on this runner, and GITHUB_TOKEN reaches only the repository the workflow
+      # runs in — so a clone of the two private ones needs a credential this repository states, and
+      # ANSIWISE_DEPS_READ_PAT is it: a token that may READ the contents of simetrixch's ansiwise
+      # repositories, and nothing more.
+      #
+      # CONDITIONAL, and that is not a silent fallback. Whether those repositories are private is
+      # theirs to decide and can change; a step that refused without the secret would fail a run
+      # that would have resolved perfectly well the day they are public. Without a credential the
+      # resolution is simply attempted as anybody else's clone would be, and a repository the runner
+      # may not read fails `dart pub get` with git's own words in the log.
+      #
+      # The token reaches git through its configuration and never through an argument, so it stands
+      # in no process listing on the runner.
+      - if: ${{ env.DEPS_TOKEN != '' }}
+        name: the credential the private dependencies are cloned with
+        run: |
+          set -euo pipefail
+          git config --global \
+            url."https://x-access-token:${DEPS_TOKEN}@github.com/simetrixch/".insteadOf \
+            "https://github.com/simetrixch/"
+
+      # The gate resolves the tree itself — `dart pub get` is its first step — analyses and formats
+      # every package of this repository, compiles the binary once as a check of its own, and
+      # refuses every SDK but the one the step above installed.
+      #
+      # IT DOES NOT RUN EVERY CHECK checks.yaml declares, and the difference is worth knowing before
+      # a green here is read as more than it is. Five of the seventeen read an INSTALLATION tree —
+      # config-validity, configuration-composes, serve-listen, service-unit, subcommands-start — and
+      # a runner has no digita-deploy beside its checkout, so those five SKIP and say so, five times,
+      # in the log. Twelve run. What this job proves is that the binary builds and the tree is sound
+      # on its own; what it cannot prove is that this binary reads a real installation.
+      - name: dart run tool/ci.dart
+        run: dart run tool/ci.dart
+
+  build:
+    name: linux-x64
+    needs: gate
+    runs-on: ubuntu-latest
+    env:
+      ARTEFACT: ansiwise-${{ github.ref_name }}-linux-x64
+      DEPS_TOKEN: ${{ secrets.ANSIWISE_DEPS_READ_PAT }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: pin
+        name: read the pinned Dart version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n "s/^const String dartVersion = '\(.*\)';\$/\1/p" tool/gate/pins.dart)"
+          test -n "$version"
+          echo "dart=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
+        with:
+          sdk: ${{ steps.pin.outputs.dart }}
+
+      # The same credential the gate resolves with, for the reason stated there.
+      - if: ${{ env.DEPS_TOKEN != '' }}
+        name: the credential the private dependencies are cloned with
+        run: |
+          set -euo pipefail
+          git config --global \
+            url."https://x-access-token:${DEPS_TOKEN}@github.com/simetrixch/".insteadOf \
+            "https://github.com/simetrixch/"
+
+      - name: dart pub get
+        run: dart pub get
+
+      # tool/build.dart and not `dart compile exe` written out here: it writes lib/plugins.dart from
+      # plugins.yaml and lib/service_unit.dart from ansiwise.service BEFORE it compiles, because the
+      # compiler reads both as source. A `dart compile exe` invoked directly would compile whatever
+      # those two files last held, which is a binary carrying a plugin set nobody declared.
+      - name: dart run tool/build.dart
+        run: dart run tool/build.dart "build/$ARTEFACT"
+
+      # An artefact that is not there must fail this job rather than reach a release as a name with
+      # no file behind it.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-x64
+          path: build/${{ env.ARTEFACT }}
+          if-no-files-found: error
+
+  publish:
+    name: the release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artefacts
+          merge-multiple: true
+
+      # The artefact is named outright rather than globbed: a build that produced nothing else would
+      # otherwise publish a release with no binary in it and say nothing about the missing one.
+      #
+      # WHAT THE ADDRESS OF THE PUBLISHED FILE THEN IS, and why it belongs in this comment: it is
+      # what an installation sets ANSIWISE_DOWNLOAD_URL to, with `<version>` where the tag goes —
+      # https://github.com/${{ github.repository }}/releases/download/<version>/ansiwise-<version>-linux-x64
+      # The manager fills both placeholders from the one pin it read
+      # (hostyour-cloud platform/versions.yaml, `cliTools.ansiwise.version`), so the address and the
+      # pin can never name two versions. That fetch carries NO credential — place-ansiwise runs a
+      # plain `curl -fsSL` on the machine — so the asset has to be readable without one.
+      - name: publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            "artefacts/ansiwise-${{ github.ref_name }}-linux-x64"
