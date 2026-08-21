@@ -69,6 +69,11 @@ resolved-packages: test/checks/resolved_packages_test.dart
 # The one Dart version the checks are true against is enforced by reading this process's own
 # version, and every other is refused with both numbers in the refusal.
 version-guard: test/checks/version_guard_test.dart
+# The tag that starts a release is proposed, held against the filter .github/workflows/release.yml
+# triggers on — READ from that file rather than restated in Dart — and pushed only when a person
+# typed it. What this binary is released under is what place-ansiwise then puts on every machine, so
+# a tag typed straight into git is a version nobody proposed and nothing held to anything.
+release: test/checks/release_test.dart
 
 # Every subcommand that executes no step starts under the installation's own configuration. `serve`
 # comes through the same entry as a run and can be handed no password — its standard input IS the

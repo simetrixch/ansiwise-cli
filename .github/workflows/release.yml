@@ -1,7 +1,10 @@
 # release — a pushed tag becomes a GitHub Release carrying the binary a machine is given.
 #
-# WHAT STARTS IT. A pushed tag, and nothing else. The tag is pushed by hand, and the version in it
-# is typed by a person: which release a change deserves is a decision, and nothing here takes it.
+# WHAT STARTS IT. A pushed tag, and nothing else. The version in it is typed by a person: which
+# release a change deserves is a decision, and nothing here takes it. The tag is pushed by
+# `dart run tool/release.dart <version>`, which shows what has been released, proposes what could
+# come next and pushes that one tag — and it READS the filter below rather than carrying a second
+# copy of it, so a filter edited here is the filter a person is held to on the next run.
 #
 # WHAT THE ARTEFACT IS, and why it is one file rather than an archive. hostyour-manager's
 # place-ansiwise fetches it with `curl -fsSL "$downloadUrl" -o "$tmp"` and installs THAT file with
