@@ -335,34 +335,20 @@ Future<void> _serve({
   // resident service, so a manager can start a run and come back to it without holding a session
   // open for the whole of it.
   if (options.option('listen') case final String address) {
-    // READ BEFORE THE BIND, so a machine whose token was never placed refuses to start rather than
-    // standing on an address while nothing guards it. There is no default and no way to waive it:
-    // the constructor below takes a token, not an optional one.
-    final ServiceToken token;
-    try {
-      final String? path = options.option('service-token-file');
-      if (path == null || path.isEmpty) {
-        stderr.writeln(
-          '--listen needs --service-token-file: an address is authenticated by nothing',
-        );
-        stderr.writeln('a session is authenticated by sshd; an address is authenticated by this');
-        exit(64);
-      }
-      token = ServiceToken.fromFile(path);
-    } on FileSystemException catch (missing) {
-      stderr.writeln('the service token cannot be read: ${missing.message} (${missing.path})');
-      exit(78);
-      // An empty token file is refused by the token itself, as a StateError. Caught because on this
-      // path it is not a fault of the code but a machine whose token was never written — and the
-      // operator has to read that as the machine's state, not as a crash.
-      // ignore: avoid_catching_errors
-    } on StateError catch (empty) {
-      stderr.writeln(empty.message);
-      exit(78);
+    // THE FILE, NOT ITS CONTENTS. `ListeningHttpServer.serve` reads it itself before it binds, so a
+    // machine whose token was never placed refuses to start rather than standing on an address while
+    // nothing guards it — and reading it there rather than here is what lets a token be rotated
+    // under a running service (ansiwise-rest#1). There is no default and no way to waive it.
+    final String? path = options.option('service-token-file');
+    if (path == null || path.isEmpty) {
+      stderr.writeln('--listen needs --service-token-file: an address is authenticated by nothing');
+      stderr.writeln('a session is authenticated by sshd; an address is authenticated by this');
+      exit(64);
     }
+    final ServiceTokenFile tokens = ServiceTokenFile(path);
 
     try {
-      await ListeningHttpServer(api, address: address, token: token).serve(
+      await ListeningHttpServer(api, address: address, tokens: tokens).serve(
         // Written once the bind stands, because that is when the port is a fact: an address asked
         // for as port 0 is answered with the port the operating system chose, and a service's
         // journal says where the surface actually is rather than where it was asked to be.
