@@ -1,5 +1,5 @@
-/// What a person reads when they run tool/release.dart: the screen they decide on, the help, and the
-/// one line that says what the run did.
+/// What a person reads when they run tool/release.dart, what the release page says, and the one line
+/// that says what the run did.
 ///
 /// The text is here rather than written where the work happens, so a check can assert what a person
 /// sees without a git, a remote or a terminal — the screen IS the feature of cli#3, and a screen
@@ -8,6 +8,15 @@ library;
 
 import 'release_tag_filter.dart';
 import 'release_versions.dart';
+
+/// The file the release carries, as .github/workflows/release.yml names it in `ARTEFACT`.
+///
+/// THIS IS THE ONE STRING TWO REPOSITORIES HAVE TO AGREE ON. hostyour-manager's place-ansiwise
+/// fetches it by this name from the release named [tag], and digita-deploy
+/// ansiwise/programs/deploy-cluster.yaml fetches it again on the same machine. It is spelled here so
+/// that what the release program tells a person to expect and what the workflow attaches are held
+/// against each other by a check rather than by two people reading two files.
+String artefactFor(String tag) => 'ansiwise-$tag-linux-x64';
 
 /// What one invocation of the release program did.
 final class ReleaseOutcome {
@@ -22,18 +31,31 @@ final class ReleaseOutcome {
   factory ReleaseOutcome.shown(String listing) => ReleaseOutcome(
     text:
         '$listing\n'
-        'release: OK — nothing was pushed; a release starts when a version is typed',
+        'release: OK — nothing was pushed; a release starts when a version and a channel are typed',
     isGreen: true,
   );
 
   /// The tag [tag] was pushed to [remote], which is the whole of what starts a release.
-  factory ReleaseOutcome.pushed({required String tag, required String remote}) => ReleaseOutcome(
+  ///
+  /// [bumped] says what happened to the version the manifest declares, because a person who typed a
+  /// version has to know whether a commit was made in their name before the tag was put on it.
+  factory ReleaseOutcome.pushed({
+    required String tag,
+    required String remote,
+    required ReleaseChannel channel,
+    required String bumped,
+  }) => ReleaseOutcome(
     text:
         'release: OK — the tag $tag is on $remote, and pushing it is the whole of what starts a '
         'release\n'
+        '  $bumped\n'
         '  $releaseWorkflowPath runs the gate, compiles the binary for linux-x64 and attaches\n'
-        '  ansiwise-$tag-linux-x64 to a GitHub Release named $tag\n'
+        '  ${artefactFor(tag)} to a GitHub Release named $tag,\n'
+        '  ${channel.isPreRelease ? 'marked as a pre-release because ${channel.name} is not the ripest channel' : 'published plainly, because ${channel.name} is the ripest channel'}\n'
         '  gh run watch --repo simetrixch/ansiwise-cli   follows it\n'
+        '  THE CHANNEL IS A CEILING, NOT A DEPLOYMENT: ${channel.name} reaches ${channel.reaches}.\n'
+        '  Nothing in this repository enforces that ceiling — it is enforced where deployments\n'
+        '  are written (hostyour-manager/shared/release.ts:8)\n'
         '  NO MACHINE HAS IT YET: what place-ansiwise puts on a machine is the version\n'
         "  cliTools.ansiwise.version pins in hostyour-cloud's platform/versions.yaml, and this\n"
         '  release did not move that pin',
@@ -45,6 +67,74 @@ final class ReleaseOutcome {
 
   /// Whether the run did what it was asked.
   final bool isGreen;
+}
+
+/// What one run of the notes program produced: the page, or the reason there is none.
+final class NotesOutcome {
+  /// [page] is what the release page carries, and [isPreRelease] how the release is to be marked.
+  const NotesOutcome.written({required this.page, required this.isPreRelease}) : refusal = null;
+
+  /// Nothing was written, and [refusal] says what could not be read.
+  const NotesOutcome.refused(this.refusal) : page = '', isPreRelease = false;
+
+  /// What the release page carries.
+  final String page;
+
+  /// Whether the release is to be marked as a pre-release.
+  final bool isPreRelease;
+
+  /// Why there is no page, or null when there is one.
+  final String? refusal;
+
+  /// Whether the run did what it was asked.
+  bool get isGreen => refusal == null;
+}
+
+/// The page a GitHub Release named by [release]'s tag carries.
+///
+/// [previous] is the release this one follows, or null when it is the first, and [subjects] are the
+/// commit subjects between the two. AN EMPTY RANGE IS SAID OUT LOUD rather than left as a heading
+/// with nothing under it: a release whose tag names the same commit as the last one is a real thing
+/// — the same code cut on a riper channel — and a page that simply showed no changes would read as a
+/// page nobody generated.
+String notesFor({
+  required ReleasedTag release,
+  required ReleaseChannel channel,
+  required String? previous,
+  required List<String> subjects,
+}) {
+  final StringBuffer page = StringBuffer()
+    ..writeln('Channel **${channel.name}** — this release may run in ${channel.reaches}.')
+    ..writeln('')
+    ..writeln(
+      'The ceiling is enforced where deployments are written, not by this release '
+      '(hostyour-manager/shared/release.ts:8).',
+    )
+    ..writeln('')
+    ..writeln('Binary: `${artefactFor(release.tag)}`, linux-x64, attached below.')
+    ..writeln('')
+    ..writeln(
+      previous == null
+          ? '## Changes — every commit up to this tag, because nothing was released before it'
+          : '## Changes since $previous',
+    )
+    ..writeln('');
+  if (subjects.isEmpty) {
+    page.writeln(
+      previous == null
+          ? 'No commit was found behind this tag, which is a history nobody could read.'
+          : 'Nothing changed since $previous: this tag names the same code, cut again.',
+    );
+  }
+  for (final String subject in subjects) {
+    page.writeln('- $subject');
+  }
+  if (previous != null) {
+    page
+      ..writeln('')
+      ..writeln('`git log --format=%s $previous..${release.tag}` is the range this was read from.');
+  }
+  return page.toString();
 }
 
 /// The screen shown when the program is run with no arguments: what the workflow releases on, what
@@ -79,7 +169,7 @@ String listingOf(
   if (releases.otherTags.isNotEmpty) {
     screen
       ..writeln('')
-      ..writeln('tags on $remote that started no release:');
+      ..writeln('tags on $remote this screen could not place as a release:');
     for (final String tag in releases.otherTags) {
       screen.writeln('  $tag');
     }
@@ -99,42 +189,61 @@ String listingOf(
   }
   screen
     ..writeln('')
-    ..writeln('type the one you decided on:')
-    ..writeln('  dart run tool/release.dart <version>')
+    ..writeln('and the channel, which is a ceiling on where the tag may run:');
+  for (final ReleaseChannel channel in ReleaseChannel.values) {
+    screen.writeln('  ${channel.name.padRight(16)}reaches ${channel.reaches}');
+  }
+  screen
+    ..writeln('')
+    ..writeln('type the version and the channel you decided on:')
+    ..writeln('  dart run tool/release.dart <version> <channel>')
     ..writeln('  dart run tool/release.dart help     what a release is, and what it is not');
   return screen.toString();
 }
 
 /// What `help` writes.
 ///
-/// IT DOES NOT SPELL OUT WHAT A VERSION MAY LOOK LIKE, and that is the point of cli#3 rather than a
-/// gap in this text. The one place that decides is `on.push.tags` in the workflow; the program reads
-/// it every run and the screen prints what it says today, so a help text carrying its own copy would
-/// be the second spelling this repository was careful not to grow.
+/// IT DOES NOT SPELL OUT WHICH TAGS ARE ADMITTED, and that is the point of cli#3 rather than a gap in
+/// this text. The one place that decides is `on.push.tags` in the workflow; the program reads it
+/// every run and the screen prints what it says today, so a help text carrying its own copy would be
+/// the second spelling this repository was careful not to grow.
 const String helpText =
     '''
-release — show what has been released, and start a release of a version you type.
+release — show what has been released, and start a release of a version and a channel you type.
 
-  dart run tool/release.dart              what has been released, and what could come next
-  dart run tool/release.dart <version>    push the tag <version>, which starts the release
-  dart run tool/release.dart help         this
+  dart run tool/release.dart                        what has been released, and what could come next
+  dart run tool/release.dart <version> <channel>    push the tag, which starts the release
+  dart run tool/release.dart help                   this
 
 WITH NO ARGUMENTS IT CHANGES NOTHING. It reads the tags on origin, prints what has been released,
 names the commit a release would carry and proposes what could come next. It never picks a version:
 which release a change deserves is a decision, and a program that took it would hide it.
 
-WHICH VERSIONS ARE ALLOWED IS NOT WRITTEN IN THIS PROGRAM. $releaseWorkflowPath triggers on
+WHAT THE TWO ARGUMENTS COMPOSE. The tag is <major>.<minor>.<patch>-<channel>-<ts14>, where the ts14
+is the UTC yyyyMMddHHmmss this program stamps at the moment you run it — never typed, which is what
+makes one version cut twice on one channel two tags instead of one name pushed twice. The grammar is
+hostyour-manager/shared/release.ts:22, one grammar for every release of everything.
+
+THE CHANNEL IS A CEILING ON WHERE THE TAG MAY RUN — alpha reaches dev, beta reaches test, stable
+reaches everywhere — and NOTHING HERE ENFORCES IT. It is enforced where deployments are written
+(hostyour-manager/shared/release.ts:8). What the channel decides here is only whether the release
+page marks the release as a pre-release.
+
+WHICH TAGS ARE ADMITTED IS NOT WRITTEN IN THIS PROGRAM. $releaseWorkflowPath triggers on
 `on.push.tags` and on nothing else, so a tag that filter does not match starts nothing — no gate, no
-build, no release. The filter is read out of that file on every run and what you type is held
-against it; run with no arguments to see what it states today. Nothing here carries a second copy of
-it, because two copies of one grammar are two answers to "may this be released".
+build, no release. The filter is read out of that file on every run and the composed tag is held
+against it; run with no arguments to see what it states today. The one thing this program refuses
+that the filter cannot is a leading zero in a number, because a filter pattern has no alternation and
+`01.2.3` is no version.
 
-WHAT HAPPENS WHEN YOU TYPE ONE. The tag is created in this checkout and pushed to origin, and that
-is all that happens here. The workflow then runs the gate, compiles the binary for linux-x64 and
-attaches it to a GitHub Release named by the tag. The tag names the commit HEAD is at, which the
-screen shows before you decide.
+WHAT HAPPENS WHEN YOU TYPE THEM. The working tree has to be clean. The version pubspec.yaml declares
+is set to the one you typed and that bump is committed — and when the manifest already declares it,
+nothing is committed and the tag names HEAD as it stands. An ANNOTATED tag is then created, HEAD is
+pushed and the tag is pushed, and that is all that happens here. The workflow runs the gate, compiles
+the binary for linux-x64 and attaches it to a GitHub Release named by the tag.
 
-WHAT DOES NOT HAPPEN. No machine gets the new binary. hostyour-manager's place-ansiwise installs the
-version `cliTools.ansiwise.version` pins in hostyour-cloud's platform/versions.yaml, and moving that
-pin is a separate act in a separate repository.
+WHAT DOES NOT HAPPEN. No release is created here — the workflow creates it, writes its notes and
+marks a pre-release. And no machine gets the new binary: hostyour-manager's place-ansiwise installs
+the version `cliTools.ansiwise.version` pins in hostyour-cloud's platform/versions.yaml, and moving
+that pin is a separate act in a separate repository.
 ''';
