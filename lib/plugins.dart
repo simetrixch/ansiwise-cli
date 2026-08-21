@@ -15,6 +15,7 @@ import 'package:ansiwise_git/ansiwise_git.dart';
 import 'package:ansiwise_headscale/ansiwise_headscale.dart';
 import 'package:ansiwise_helm/ansiwise_helm.dart';
 import 'package:ansiwise_host/ansiwise_host.dart';
+import 'package:ansiwise_http/ansiwise_http.dart';
 import 'package:ansiwise_kubernetes/ansiwise_kubernetes.dart';
 import 'package:ansiwise_vault/ansiwise_vault.dart';
 import 'package:ansiwise_vault_kubernetes/ansiwise_vault_kubernetes.dart';
@@ -33,4 +34,5 @@ const PluginSet compiledPlugins = PluginSet(<Plugin>[
   CloudflarePlugin(),
   VersionsPlugin(),
   HeadscalePlugin(),
+  HttpPlugin(),
 ]);
