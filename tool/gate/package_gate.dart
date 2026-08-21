@@ -7,12 +7,21 @@
 /// read and refused where it is not this repository's own checkout, then what each package is
 /// COMPOSED from is read — every git-named package from working checkouts or every one from pushed
 /// commits, with a mix refused and the uniform answer logged — then the analyzer and the formatter
-/// are asked about the whole tree at once, then each suite runs. A package whose resolution failed
-/// is not analysed and not tested — there is nothing true to say about it until its dependencies
-/// are there, and the analyzer would answer with one error per import.
+/// are asked about the whole tree at once, then each suite runs.
 ///
-/// EVERY PACKAGE AND EVERY STEP RUNS EVEN AFTER AN EARLIER ONE WENT RED. One failure hiding the rest
-/// is how the next run finds a second problem that was there all along.
+/// A RESOLUTION THAT FAILED ENDS THE RUN, AFTER EVERY PACKAGE HAS BEEN THROUGH IT. Everything after
+/// the resolution reads the resolution: the analyzer answers a package it cannot resolve with one
+/// error per import, the formatter takes its page width from an analysis_options.yaml that reaches
+/// it through a `package:` include and falls back to eighty columns without one, and a suite cannot
+/// be compiled at all. What those three then report is about the missing dependencies and not about
+/// the code, which is the one answer nobody can act on — a gate run whose clone of a private
+/// dependency failed published thirty-four format findings that way, and the person reading them
+/// was sent to the wrong files.
+///
+/// EVERY PACKAGE AND EVERY STEP AFTER THAT RUNS EVEN AFTER AN EARLIER ONE WENT RED. One failure
+/// hiding the rest is how the next run finds a second problem that was there all along, and it is
+/// why the resolutions are all taken before the run is ended: one missing credential names every
+/// package it stops, not the first.
 library;
 
 import 'dart:io';
@@ -89,6 +98,7 @@ final class PackageGate {
   Future<GateVerdict> run() async {
     final List<String> failures = <String>[];
     final List<DartPackage> resolved = <DartPackage>[];
+    final List<String> covered = <String>[for (final DartPackage package in packages) package.name];
 
     for (final DartPackage package in packages) {
       log.heading('${package.name} — dart pub get');
@@ -99,6 +109,17 @@ final class PackageGate {
       } else {
         failures.add('${package.name}/pub-get');
       }
+    }
+
+    if (resolved.length != packages.length) {
+      log.heading('the tree is not resolved');
+      log.note(
+        'the run stops here: ${packages.length - resolved.length} of ${packages.length} '
+        'package(s) did not resolve, and everything after this step reads the resolution — what '
+        'the analyzer, the formatter and the suites would report is the missing dependencies '
+        'wearing the shape of findings about the code',
+      );
+      return GateVerdict(failures, covered: covered);
     }
 
     // WHICH COPY OF EACH PACKAGE WAS COMPOSED, before anything is judged. A package of this
@@ -179,9 +200,6 @@ final class PackageGate {
       }
     }
 
-    return GateVerdict(
-      failures,
-      covered: <String>[for (final DartPackage package in packages) package.name],
-    );
+    return GateVerdict(failures, covered: covered);
   }
 }

@@ -18,6 +18,14 @@
 /// defects, which is the one answer nobody can act on. So the package config that applies is read
 /// first, and a package it does not cover is reported NOT ANALYSED with its name on the verdict
 /// line. That is a gap and it is meant to read as one; it is not a pass.
+///
+/// THE FORMATTER IS NOT ASKED ABOUT SUCH A PACKAGE EITHER, though it parses and never resolves. Its
+/// page width is not a default it carries: analysis_options.yaml sets it, and this repository's
+/// reaches the setting through `include: package:ansiwise_checks_tree/analysis_options.yaml`, which
+/// only .dart_tool/package_config.json can resolve. Without one the formatter falls back to eighty
+/// columns where this tree is written to a hundred, and reports every file as one it would change —
+/// thirty-four of them in a release run whose clone of a private dependency had failed, and not one
+/// of them about the code.
 library;
 
 import 'dart:io';
@@ -65,7 +73,7 @@ final class AnalysisReading {
     final String gap = notAnalysed.isEmpty
         ? ''
         : ', and ${notAnalysed.length} was NOT ANALYSED — ${notAnalysed.join(', ')} — because '
-              'nothing here resolved its dependencies, though the formatter still read it';
+              'nothing here resolved its dependencies, so neither tool was asked about it';
     return 'analysis: OK — dart analyze --fatal-infos --fatal-warnings and dart format '
         '--output=none --set-exit-if-changed are clean for all ${analysed.length} Dart package(s) '
         'whose dependencies are resolved here$gap';
@@ -90,20 +98,16 @@ final class AnalysisCheck {
     final List<String> notAnalysed = <String>[];
 
     for (final DartPackage package in packages) {
-      if (packageIsResolved(package)) {
-        analysed.add(package.name);
-        for (final String issue in analyzerIssuesIn(
-          await toolchain.analyze(directory: package.directory),
-        )) {
-          issues.add(AnalysisIssue(package.name, issue));
-        }
-      } else {
+      if (!packageIsResolved(package)) {
         notAnalysed.add(package.name);
+        continue;
       }
-
-      // The formatter parses and never resolves, so it holds for a package whose dependencies are
-      // missing exactly as it does for one that has them. An unresolved package is unanalysed, not
-      // unchecked.
+      analysed.add(package.name);
+      for (final String issue in analyzerIssuesIn(
+        await toolchain.analyze(directory: package.directory),
+      )) {
+        issues.add(AnalysisIssue(package.name, issue));
+      }
       for (final String changed in formatterChangesIn(
         await toolchain.format(directory: package.directory),
       )) {

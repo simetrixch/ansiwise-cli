@@ -56,6 +56,89 @@ void main() {
       );
     });
 
+    test('is three numbers, and a pre-release after a hyphen, and nothing else', () {
+      final TagFilter filter = TagFilter.ofWorkflow(File(releaseWorkflowPath).readAsStringSync());
+
+      for (final String version in <String>[
+        '0.1.0',
+        '1.4.2',
+        '10.0.0',
+        '0.1.0-alpha',
+        '0.1.0-beta.2',
+      ]) {
+        expect(
+          filter.accepts(version),
+          isTrue,
+          reason:
+              '"$version" is a version by the grammar ansiwise-client/tool/release_version.dart:18 '
+              'spells out, and a filter that refused one would leave a person unable to release it',
+        );
+      }
+
+      for (final String notAVersion in <String>[
+        '0.1.0+7',
+        '0.1.0+8',
+        'v0.1.0',
+        '0.1',
+        '0.1.0.1',
+        'nightly',
+      ]) {
+        expect(
+          filter.accepts(notAVersion),
+          isFalse,
+          reason:
+              '"$notAVersion" is no version, and a tag that starts a release is what every machine '
+              'is then given by name',
+        );
+      }
+    });
+
+    test('and where the pattern language cannot say it, the workflow says so instead', () {
+      final String workflow = File(releaseWorkflowPath).readAsStringSync();
+      final TagFilter filter = TagFilter.ofWorkflow(workflow);
+
+      // GitHub's filter patterns have no alternation, so `0|[1-9][0-9]*` cannot be written, and
+      // `[...]` matches one alphanumeric character, so the pre-release identifier set with its `.`
+      // and `-` cannot be written either. What is left over is admitted here and is no version.
+      for (final (String admitted, String said) in <(String, String)>[
+        ('01.2.3', '01.2.3 is admitted here'),
+        ('0.1.0-beta+7', '0.1.0-beta+7 and a bare 0.1.0- are admitted too'),
+        ('0.1.0-', 'a bare 0.1.0- are admitted too'),
+      ]) {
+        expect(
+          filter.accepts(admitted),
+          isTrue,
+          reason: 'this is the gap the workflow states, and a check that hid it would state none',
+        );
+        expect(
+          workflow,
+          contains(said),
+          reason:
+              'the gap is named in the file where the filter and the grammar are both written, so '
+              'a narrowing that leaves this behind is read there rather than found on a release day',
+        );
+      }
+    });
+
+    test('COUNTER-PROBE: the pattern that stood here before admits what started run 32493864140', () {
+      // PLANTED: the single pattern this workflow triggered on until the tag 0.1.0+7 was pushed. Its
+      // trailing `*` is any run of characters, so it reads the build metadata the grammar refuses as
+      // part of the version.
+      final TagFilter asItWas = TagFilter.ofWorkflow(
+        _workflowTriggeringOn("'[0-9]+.[0-9]+.[0-9]+*'"),
+      );
+      expect(asItWas.accepts('0.1.0+7'), isTrue);
+      expect(
+        asItWas.accepts('0.1.0'),
+        isTrue,
+        reason: 'the innocent case, or nothing means anything',
+      );
+
+      final TagFilter now = TagFilter.ofWorkflow(File(releaseWorkflowPath).readAsStringSync());
+      expect(now.accepts('0.1.0+7'), isFalse);
+      expect(now.accepts('0.1.0'), isTrue);
+    });
+
     test('COUNTER-PROBE: a workflow saying something else is answered by what it says', () {
       final TagFilter asItIs = TagFilter.ofWorkflow(
         _workflowTriggeringOn("'[0-9]+.[0-9]+.[0-9]+*'"),
@@ -221,13 +304,15 @@ void main() {
         contains('0.1.1'),
         reason: 'the latest release is 0.1.0, so the next patch is what is proposed',
       );
-      expect(
-        outcome.text,
-        contains('[0-9]+.[0-9]+.[0-9]+*'),
-        reason:
-            'what the workflow triggers on is on the screen, because this program states no grammar '
-            'a person could read anywhere else',
-      );
+      for (final String pattern in <String>['[0-9]+.[0-9]+.[0-9]+', '[0-9]+.[0-9]+.[0-9]+-*']) {
+        expect(
+          outcome.text,
+          contains(pattern),
+          reason:
+              'every pattern the workflow triggers on is on the screen, because this program states '
+              'no grammar a person could read anywhere else',
+        );
+      }
       expect(
         outcome.text,
         contains('nightly'),
@@ -435,7 +520,10 @@ void main() {
 }
 
 /// The filter this repository's workflow states, as the checks that are not about reading it use it.
-final TagFilter _theFilter = TagFilter.ofWorkflow(_workflowTriggeringOn("'[0-9]+.[0-9]+.[0-9]+*'"));
+///
+/// Read from the real file rather than written out here a second time, so the screen and the
+/// refusals below are driven by the patterns a pushed tag is really held against.
+final TagFilter _theFilter = TagFilter.ofWorkflow(File(releaseWorkflowPath).readAsStringSync());
 
 /// A workflow file stating [pattern] under `on.push.tags`, and the keys around it a real one has.
 String _workflowTriggeringOn(String pattern) =>

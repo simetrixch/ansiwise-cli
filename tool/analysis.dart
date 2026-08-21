@@ -40,8 +40,9 @@ Future<void> main() async {
   for (final String name in reading.notAnalysed) {
     stdout.writeln(
       '  NOT ANALYSED: $name — nothing here resolved its dependencies, so the analyzer would answer '
-      'with one error per import and nothing about the code. Resolving it with the SDK its own '
-      'pubspec asks for is what opens it to this check.',
+      'with one error per import and the formatter with every file at the page width it falls back '
+      'to, and neither answer would be about the code. Resolving it with the SDK its own pubspec '
+      'asks for is what opens it to this check.',
     );
   }
 

@@ -11,10 +11,12 @@ import '../../tool/gate/package_gate.dart';
 /// The check sequence of the gate, driven against a scripted toolchain.
 ///
 /// The verdict line is the one thing a person reads off a gate run, and everything below decides it.
-/// A package whose resolution failed must not be analysed or tested — the analyzer answers such a
-/// package with one error per import and the failure reads as a tree full of defects — and every
-/// remaining package must still run, because one failure hiding the rest is how the next run finds a
-/// second problem that was there all along.
+/// A resolution that failed must END the run: everything after it reads the resolution, so the
+/// analyzer, the formatter and the suites would report the missing dependencies as findings about
+/// the code — which is what a release run did with thirty-four format findings after a private
+/// dependency could not be cloned. Every package is still taken through `dart pub get` before the
+/// run ends, so one missing credential names every package it stops rather than only the first, and
+/// after that step every package and every step runs even when an earlier one went red.
 void main() {
   test('a green run says exactly what the gate is read by', () async {
     final GateVerdict verdict = await _gate(FakeDartToolchain(), <String>['one']).run();
@@ -54,7 +56,7 @@ void main() {
     );
   });
 
-  test('a package whose resolution failed is named, and not analysed or tested', () async {
+  test('a resolution that failed ends the run, and nothing after it is asked anything', () async {
     final List<DartPackage> packages = _packages(<String>['one', 'two']);
     final FakeDartToolchain toolchain = FakeDartToolchain(
       answers: <String, ToolRun>{
@@ -64,6 +66,43 @@ void main() {
         ),
       },
     );
+    final CollectedGateLog log = CollectedGateLog();
+    final GateVerdict verdict = await PackageGate(
+      toolchain: toolchain,
+      packages: packages,
+      log: log,
+      analysisRoot: '/work',
+    ).run();
+
+    expect(verdict.failures, <String>['one/pub-get']);
+    expect(verdict.line, 'ci: FAIL — one/pub-get');
+    expect(
+      toolchain.calls.map((ToolCall call) => call.what),
+      <String>['pub get', 'pub get'],
+      reason:
+          'the analyzer, the formatter and the suites all read the resolution, so what they would '
+          'report about a tree that is not there is the missing dependencies wearing the shape of '
+          'findings about the code',
+    );
+    expect(
+      log.said,
+      contains('the tree is not resolved'),
+      reason: 'a run that stops without saying it stopped is a run somebody reads as complete',
+    );
+    expect(
+      log.said.join('\n'),
+      contains('1 of 2 package(s) did not resolve'),
+      reason: 'how much of the tree was lost is what says whether this is one package or all of it',
+    );
+  });
+
+  test('every package is taken through pub get before the run ends, not only the first', () async {
+    final List<DartPackage> packages = _packages(<String>['one', 'two']);
+    final FakeDartToolchain toolchain = FakeDartToolchain(
+      answers: <String, ToolRun>{
+        'pub get': const ToolRun(exitCode: 69, output: 'could not resolve'),
+      },
+    );
     final GateVerdict verdict = await PackageGate(
       toolchain: toolchain,
       packages: packages,
@@ -71,14 +110,12 @@ void main() {
       analysisRoot: '/work',
     ).run();
 
-    expect(verdict.failures, <String>['one/pub-get']);
-    expect(verdict.line, 'ci: FAIL — one/pub-get');
     expect(
-      toolchain.calls
-          .where((ToolCall call) => call.what == 'test')
-          .map((ToolCall call) => call.directory),
-      <String>[packages.last.directory],
-      reason: 'a package with no dependencies resolved has nothing true to say about itself',
+      verdict.failures,
+      <String>['one/pub-get', 'two/pub-get'],
+      reason:
+          'one missing credential stops every package it hits, and a run naming the first alone '
+          'sends the next run to find the second',
     );
   });
 

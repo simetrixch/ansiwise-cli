@@ -26,8 +26,9 @@
 # lib/infrastructure/session_transport.dart:146-171), fetching nothing itself. Nobody takes a Windows
 # or a macOS build — a developer on either runs `dart run bin/ansiwise.dart` out of this checkout —
 # so a second and a third runner would attach files no caller asks for. linux-arm64 is not built
-# either: GitHub's arm64 runners are not offered to a private repository, and an artefact this
-# workflow cannot produce must not be named in a release as though it could.
+# either: no caller asks for one — the three above all run on x64 — and an artefact nobody fetches
+# must not be named in a release as though somebody did. GitHub's arm64 runners became reachable
+# when this repository was made public; what stands in the way now is a taker, not a runner.
 #
 # THE VERSION REACHES NOTHING INSIDE THE BINARY, and that is not an omission. The binary takes no
 # --version flag; what says which version stands on a machine is the NAME of the file the
@@ -46,9 +47,34 @@ name: release
 on:
   push:
     tags:
-      # The same grammar ansiwise-client releases under: semantic versioning, with a pre-release
-      # after the hyphen. This matches 0.1.0, 0.1.0-alpha and 0.1.0-beta.2 alike.
-      - '[0-9]+.[0-9]+.[0-9]+*'
+      # THE GRAMMAR IS THE ONE ansiwise-client RELEASES UNDER: semantic versioning 2.0.0 with the
+      # build-metadata half removed — three numbers, and an optional pre-release after a hyphen, as
+      # ansiwise-client/tool/release_version.dart:18 spells it out. 0.1.0, 0.1.0-alpha and
+      # 0.1.0-beta.2 are versions; v0.1.0, 0.1, 01.2.3 and 0.1.0+7 are not. Build metadata is
+      # refused there for a stated reason: 0.1.0+7 and 0.1.0+8 are one version wearing two tags, and
+      # nothing — not that file and not GitHub — could say which of them is the later release.
+      #
+      # WHAT THESE TWO PATTERNS SAY. The first is a release, the second a pre-release. This is a
+      # filter pattern and NOT a regular expression: `[0-9]` matches one digit, `+` says one or more
+      # of what stands before it, `*` is any run of characters carrying no `/`, and everything else
+      # — `.` and `-` included — stands for itself (the filter pattern cheat sheet of
+      # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax, read
+      # 2026-08-21). A tag matches a pattern only as a WHOLE, and that is what the first one rests
+      # on: it ends after the third number, so 0.1.0+7 has `+7` left over and starts nothing. The
+      # single pattern that stood here before — `[0-9]+.[0-9]+.[0-9]+*` — ended in a `*` that
+      # swallowed exactly that, and run 32493864140 is what it looked like when it did.
+      #
+      # WHERE THIS IS STILL WIDER THAN THE GRAMMAR, because the pattern language cannot say it.
+      # There is no alternation, so `0|[1-9][0-9]*` cannot be written and 01.2.3 is admitted here
+      # though it is no version. `[...]` matches one ALPHANUMERIC character, so the pre-release
+      # identifier set — which carries `.` and `-` — cannot be written either, and everything after
+      # the hyphen is unconstrained: 0.1.0-beta+7 and a bare 0.1.0- are admitted too. Narrowing
+      # those away would take twenty-seven patterns for the three numbers alone, or a negative `!`
+      # pattern, which tool/release_tag_filter.dart refuses to read because it reads what a filter
+      # ACCEPTS. What holds in the other direction is what matters for a release: nothing the
+      # grammar accepts is refused here, so no version a person types is silently ignored.
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-*'
 
 permissions:
   contents: read
@@ -61,11 +87,6 @@ jobs:
   gate:
     name: the gate
     runs-on: ubuntu-latest
-    # The credential is carried as an environment value of the job rather than read in the step that
-    # uses it, because the step is CONDITIONAL on whether one was given and `secrets` is not a
-    # context a step's `if` may read — `env` is.
-    env:
-      DEPS_TOKEN: ${{ secrets.ANSIWISE_DEPS_READ_PAT }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -82,30 +103,6 @@ jobs:
       - uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
         with:
           sdk: ${{ steps.pin.outputs.dart }}
-
-      # THE DEPENDENCIES THIS PACKAGE RESOLVES ARE IN OTHER REPOSITORIES, and two of them are
-      # private. pubspec.yaml names ansiwise-core and ansiwise-rest, which are public, and
-      # ansiwise-plugins (ten packages, pubspec.yaml:23-72) and ansiwise-checks, which are not. `dart pub get` clones
-      # each with the git on this runner, and GITHUB_TOKEN reaches only the repository the workflow
-      # runs in — so a clone of the two private ones needs a credential this repository states, and
-      # ANSIWISE_DEPS_READ_PAT is it: a token that may READ the contents of simetrixch's ansiwise
-      # repositories, and nothing more.
-      #
-      # CONDITIONAL, and that is not a silent fallback. Whether those repositories are private is
-      # theirs to decide and can change; a step that refused without the secret would fail a run
-      # that would have resolved perfectly well the day they are public. Without a credential the
-      # resolution is simply attempted as anybody else's clone would be, and a repository the runner
-      # may not read fails `dart pub get` with git's own words in the log.
-      #
-      # The token reaches git through its configuration and never through an argument, so it stands
-      # in no process listing on the runner.
-      - if: ${{ env.DEPS_TOKEN != '' }}
-        name: the credential the private dependencies are cloned with
-        run: |
-          set -euo pipefail
-          git config --global \
-            url."https://x-access-token:${DEPS_TOKEN}@github.com/simetrixch/".insteadOf \
-            "https://github.com/simetrixch/"
 
       # The gate resolves the tree itself — `dart pub get` is its first step — analyses and formats
       # every package of this repository, compiles the binary once as a check of its own, and
@@ -126,7 +123,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ARTEFACT: ansiwise-${{ github.ref_name }}-linux-x64
-      DEPS_TOKEN: ${{ secrets.ANSIWISE_DEPS_READ_PAT }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -142,15 +138,6 @@ jobs:
       - uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
         with:
           sdk: ${{ steps.pin.outputs.dart }}
-
-      # The same credential the gate resolves with, for the reason stated there.
-      - if: ${{ env.DEPS_TOKEN != '' }}
-        name: the credential the private dependencies are cloned with
-        run: |
-          set -euo pipefail
-          git config --global \
-            url."https://x-access-token:${DEPS_TOKEN}@github.com/simetrixch/".insteadOf \
-            "https://github.com/simetrixch/"
 
       - name: dart pub get
         run: dart pub get

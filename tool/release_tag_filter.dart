@@ -13,8 +13,9 @@
 /// `*` matches a run of characters but no `/`, `**` matches one including `/`, `+` matches one or
 /// more of what stands before it, `?` matches zero or one of it, `[...]` matches one character of
 /// the set, `\` takes the next character literally, and a leading `!` negates the whole pattern.
-/// Everything else — `.` included, which is why `[0-9]+.[0-9]+.[0-9]+*` reads a literal dot — stands
-/// for itself.
+/// Everything else — `.` and `-` included, which is why `[0-9]+.[0-9]+.[0-9]+-*` reads a literal dot
+/// and a literal hyphen — stands for itself. A pattern is matched against the WHOLE tag, so one that
+/// ends after its last atom refuses everything standing behind it.
 ///
 /// A PATTERN THIS CANNOT READ IS REFUSED BY NAME, never guessed at. A `!`, a `[` that never closes
 /// and a quantifier with nothing in front of it each end the program with the pattern quoted,

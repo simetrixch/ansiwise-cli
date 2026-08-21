@@ -6,6 +6,7 @@ import '../../tool/gate/analysis_check.dart';
 import '../../tool/gate/dart_packages.dart';
 import '../../tool/gate/dart_toolchain.dart';
 import '../../tool/gate/fake_dart_toolchain.dart';
+import '../../tool/gate/pins.dart';
 import '../../tool/gate/real_dart_toolchain.dart';
 
 /// The counter-probe of the check that cannot be a test of this package.
@@ -64,18 +65,20 @@ void main() {
       );
     });
 
-    test('an unresolved package is not analysed and is named for it', () async {
+    test('an unresolved package is asked nothing, by either tool, and is named for it', () async {
       final DartPackage package = _package(_scratch('unresolved'), 'planted_unresolved');
+      final FakeDartToolchain toolchain = FakeDartToolchain(
+        answers: <String, ToolRun>{
+          'analyze': const ToolRun(
+            exitCode: 3,
+            output:
+                '  error - lib/a.dart:1:8 - Target of URI does not exist - uri_does_not_exist\n',
+          ),
+          'format': const ToolRun(exitCode: 1, output: 'Changed lib/a.dart\n'),
+        },
+      );
       final AnalysisReading reading = await AnalysisCheck(
-        toolchain: FakeDartToolchain(
-          answers: <String, ToolRun>{
-            'analyze': const ToolRun(
-              exitCode: 3,
-              output:
-                  '  error - lib/a.dart:1:8 - Target of URI does not exist - uri_does_not_exist\n',
-            ),
-          },
-        ),
+        toolchain: toolchain,
         packages: <DartPackage>[package],
       ).run();
 
@@ -84,13 +87,20 @@ void main() {
         reading.issues,
         isEmpty,
         reason:
-            'the analyzer answers a package it cannot resolve with one error per import and nothing '
-            'about the code, which is the one answer nobody can act on',
+            'the analyzer answers a package it cannot resolve with one error per import, and the '
+            'formatter — whose page width this repository sets through a package: include in '
+            'analysis_options.yaml — falls back to eighty columns and calls every file changed; '
+            'neither answer is about the code, and both were once reported as findings',
+      );
+      expect(
+        toolchain.calls.map((ToolCall call) => call.what),
+        isEmpty,
+        reason: 'a tool that is not started cannot report a finding about a tree that is not there',
       );
       expect(reading.verdictLine, contains('NOT ANALYSED'));
     });
 
-    test('a resolved package is analysed, and the formatter reads it either way', () async {
+    test('a resolved package is analysed and formatted', () async {
       final DartPackage package = _package(
         _scratch('resolved'),
         'planted_resolved',
@@ -180,6 +190,54 @@ void main() {
       expect(
         formatterChangesIn(await const RealDartToolchain().format(directory: clean.path)),
         isEmpty,
+      );
+    });
+
+    test('THE PLANTED RESOLUTION: the formatter answers one file two ways', () async {
+      // Why the check above skips the formatter for an unresolved package, shown with the real
+      // tool rather than asserted. The page width is set by an analysis_options.yaml that is
+      // included by a `package:` URI — the arrangement this repository has — and that URI is
+      // resolvable only through .dart_tool/package_config.json. The same file is measured twice
+      // and the resolution is the only difference between the two runs.
+      final Directory scratch = _scratch('page-width');
+      final String subject = '${scratch.path}/subject';
+      Directory('${scratch.path}/options/lib').createSync(recursive: true);
+      Directory('$subject/lib').createSync(recursive: true);
+      File(
+        '${scratch.path}/options/lib/analysis_options.yaml',
+      ).writeAsStringSync('formatter:\n  page_width: 100\n');
+      File('${scratch.path}/options/pubspec.yaml').writeAsStringSync('name: planted_options\n');
+      File('$subject/pubspec.yaml').writeAsStringSync('name: planted_subject\n');
+      File(
+        '$subject/analysis_options.yaml',
+      ).writeAsStringSync('include: package:planted_options/analysis_options.yaml\n');
+      File('$subject/lib/planted.dart').writeAsStringSync(_insideAHundredColumns);
+
+      expect(
+        formatterChangesIn(await const RealDartToolchain().format(directory: subject)),
+        isNotEmpty,
+        reason:
+            'with no resolution the include cannot be read, the formatter falls back to eighty '
+            'columns, and it reports a file nobody touched — thirty-four of them in a release run '
+            'whose clone of a private dependency had failed',
+      );
+
+      final String languageVersion = dartVersion.split('.').take(2).join('.');
+      Directory('$subject/.dart_tool').createSync(recursive: true);
+      File('$subject/.dart_tool/package_config.json').writeAsStringSync(
+        '{ "configVersion": 2, "packages": ['
+        '{ "name": "planted_options", "rootUri": "../../options", "packageUri": "lib/", '
+        '"languageVersion": "$languageVersion" }, '
+        '{ "name": "planted_subject", "rootUri": "../", "packageUri": "lib/", '
+        '"languageVersion": "$languageVersion" } ] }',
+      );
+
+      expect(
+        formatterChangesIn(await const RealDartToolchain().format(directory: subject)),
+        isEmpty,
+        reason:
+            'the innocent case, and it is the same file and the same formatter — a resolution is '
+            'the whole of what changed',
       );
     });
   });
@@ -320,5 +378,12 @@ const String _theAnalyzerRefusesThis =
     '}\n';
 
 const String _theFormatterWouldRewriteThis = 'void main(){int   planted=1;print(planted);}\n';
+
+/// A file whose one statement stands at eighty-eight columns: the formatter leaves it alone at a
+/// page width of a hundred and wraps it at the default eighty.
+const String _insideAHundredColumns =
+    'void main() {\n'
+    "  print('a line that stands inside one hundred columns and would be wrapped at eighty');\n"
+    '}\n';
 
 const String _formattedAndSound = 'void main() {\n  print(1);\n}\n';
