@@ -8,7 +8,7 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:ansiwise_core/ansiwise_core.dart';
-import 'package:ansiwise_rest/ansiwise_rest.dart';
+import 'package:ansiwise_cli/rest.dart';
 import 'package:ansiwise_cli/plugins.dart';
 import 'package:ansiwise_cli/service_installation.dart';
 import 'package:ansiwise_cli/service_unit.dart';
@@ -273,7 +273,7 @@ Future<void> main(List<String> argv) async {
   //
   // Both are handed the SAME [DeploymentApi], built from the registry composed above. That is what
   // makes a served run and a run started here resolve one plugin set rather than two kept in step:
-  // neither program composes anything, and `ansiwise_rest` depends on no plugin and could not.
+  // one tree composes it once, and neither program composes anything of its own.
   if (rest.first == ResidentService.sessionProgram) {
     if (options.option(ResidentService.addressOption) != null ||
         options.option(ResidentService.tokenFileOption) != null) {

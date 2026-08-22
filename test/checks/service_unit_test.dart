@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:ansiwise_checks_tree/ansiwise_checks_tree.dart';
 import 'package:ansiwise_cli/service_installation.dart';
 import 'package:ansiwise_cli/service_unit.dart';
-import 'package:ansiwise_rest/ansiwise_rest.dart';
+import 'package:ansiwise_cli/rest.dart';
 import 'package:test/test.dart';
 
 import '../../tool/gate/service_unit.dart';

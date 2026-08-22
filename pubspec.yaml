@@ -14,12 +14,9 @@ dependencies:
     git:
       url: https://github.com/simetrixch/ansiwise-core.git
       ref: master
-  # The REST resources `serve` puts in front of a run, and the adapter that carries them over the
-  # session's own pipes. Its own package since the framework stopped meaning two things at once.
-  ansiwise_rest:
-    git:
-      url: https://github.com/simetrixch/ansiwise-rest.git
-      ref: master
+  # For the annotations the REST message types under lib/src/rest carry, so an immutable one is
+  # checked as immutable.
+  meta: ^1.15.0
   ansiwise_kubernetes:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git

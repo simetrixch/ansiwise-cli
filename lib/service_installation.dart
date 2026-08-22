@@ -18,7 +18,7 @@
 library;
 
 import 'package:ansiwise_core/ansiwise_core.dart';
-import 'package:ansiwise_rest/ansiwise_rest.dart';
+import 'package:ansiwise_cli/rest.dart';
 
 import 'service_unit.dart';
 
