@@ -58,23 +58,25 @@ Future<void> main(List<String> argv) async {
           'where it normally stands so that handing this binary its config file is enough',
     )
     ..addOption(
-      'listen',
+      ResidentService.addressOption,
       help:
-          'serve on this address as a resident service instead of over the session\'s own stdio: '
-          'host:port (127.0.0.1:9953, [::1]:9953) or unix:<path>. There is no default, because '
+          'where `${ResidentService.program}` stands: host:port (127.0.0.1:9953, [::1]:9953) or '
+          'unix:<path>. Required by that program and by `install-service`, which is given the same '
+          'address and writes it into the unit it places — where the accepted shapes are narrower, '
+          'because a service nobody can reach is worth less than a refusal. There is no default: '
           'which addresses may reach the surface is the installation\'s decision, not this '
-          'binary\'s. `install-service` is given the same address and writes it into the unit it '
-          'places, where the accepted shapes are narrower — a service nobody can reach is worth '
-          'less than a refusal',
+          'binary\'s. It is NOT an option of `${ResidentService.sessionProgram}`, which serves one '
+          'session over that session\'s own pipes and stands on no address at all',
     )
     ..addOption(
-      'service-token-file',
+      ResidentService.tokenFileOption,
       help:
-          'the file holding the token every caller on --listen must present. Required with '
-          '--listen and meaningless without it: a session is authenticated by sshd, an address by '
-          'nothing until this says so. The PATH is here and the VALUE never is — a credential on a '
-          'command line stands in every process listing on the machine. `install-service` is the '
-          'one that puts the value there, and it is told it on standard input',
+          'the file holding the tokens every caller of `${ResidentService.program}` must present. '
+          'Required by it and meaningless to `${ResidentService.sessionProgram}`: a session is '
+          'authenticated by sshd, an address by nothing until this says so. The PATH is here and '
+          'the VALUE never is — a credential on a command line stands in every process listing on '
+          'the machine. `install-service` is the one that puts the value there, and it is told it '
+          'on standard input',
     )
     ..addOption('role', defaultsTo: 'master', help: 'what this machine is')
     ..addOption('stage', defaultsTo: 'dev')
@@ -98,9 +100,19 @@ Future<void> main(List<String> argv) async {
   if (options.flag('help') || rest.isEmpty) {
     stdout
       ..writeln('ansiwise <program> --mode test|dry|run [--answers <file>]')
-      ..writeln('ansiwise serve [--listen <address>]')
       ..writeln(
-        'ansiwise install-service --listen <address> --service-token-file <path> --answers -',
+        'ansiwise ${ResidentService.sessionProgram}'
+        '                      over this session\'s own stdin and stdout',
+      )
+      ..writeln(
+        'ansiwise ${ResidentService.program} '
+        '--${ResidentService.addressOption} <address> '
+        '--${ResidentService.tokenFileOption} <path>',
+      )
+      ..writeln(
+        'ansiwise install-service '
+        '--${ResidentService.addressOption} <address> '
+        '--${ResidentService.tokenFileOption} <path> --answers -',
       )
       ..writeln()
       ..writeln(parser.usage);
@@ -171,11 +183,12 @@ Future<void> main(List<String> argv) async {
     // run that has already changed the machine.
     //
     // **THE CALLER'S ROUTE IS RESOLVED HERE AND REFUSED ELSEWHERE, and that is not a lapse.** This
-    // is the entry of every subcommand, and `serve` is one of them: it holds no password because it
-    // executes no step — it starts a detached child per run, and the child is handed its own
-    // password with its own answers. A refusal here would mean the surface cannot start on the very
-    // installations that chose this route, which is what it did until this line was written. What
-    // refuses a run with no password is the run path, where a step is about to be taken.
+    // is the entry of every program this binary carries, and both doors of the surface come through
+    // it: neither holds a password, because neither executes a step — each starts a detached child
+    // per run, and the child is handed its own password with its own answers. A refusal here would
+    // mean the surface cannot start on the very installations that chose this route, which is what
+    // it did until this line was written. What refuses a run with no password is the run path,
+    // where a step is about to be taken.
     inputs = await _inputsIn(files, options.option('answers'));
     elevationSource = active.elevation;
     elevation = switch (active.elevation) {
@@ -253,12 +266,43 @@ Future<void> main(List<String> argv) async {
   final RunDirectory directory = RunDirectory(options.option('runs') ?? RunDirectory.defaultRoot);
   final FileRunStore store = FileRunStore(directory: directory);
 
-  if (rest.first == 'serve') {
-    await _serve(
+  // THE TWO DOORS ARE TWO PROGRAMS, and the surface they serve is composed once for both. Which of
+  // them a machine runs is a word, never an option: a flag that turned the deployment tool into a
+  // service meant a machine asked for one could be given the other, and it meant the interface of
+  // the surface was stated in this file instead of in the package the surface lives in.
+  //
+  // Both are handed the SAME [DeploymentApi], built from the registry composed above. That is what
+  // makes a served run and a run started here resolve one plugin set rather than two kept in step:
+  // neither program composes anything, and `ansiwise_rest` depends on no plugin and could not.
+  if (rest.first == ResidentService.sessionProgram) {
+    if (options.option(ResidentService.addressOption) != null ||
+        options.option(ResidentService.tokenFileOption) != null) {
+      stderr.writeln(
+        '${ResidentService.sessionProgram} serves the session it was started in, over that '
+        'session\'s own stdin and stdout — it stands on no address and demands no token, because '
+        'sshd authenticated the caller before this process existed',
+      );
+      stderr.writeln(
+        'the resident service is its own program: ansiwise ${ResidentService.program} '
+        '--${ResidentService.addressOption} <address> '
+        '--${ResidentService.tokenFileOption} <path>',
+      );
+      exit(64);
+    }
+    // The session's own standard input and output are the connection. Nothing listens.
+    await ChannelHttpServer(
+      _surface(machine: machine, catalogue: catalogue, store: store, requireDryRun: requireDryRun),
+      incoming: stdin,
+      outgoing: stdout,
+    ).serve();
+    return;
+  }
+
+  if (rest.first == ResidentService.program) {
+    await _residentService(
       machine: machine,
       catalogue: catalogue,
       store: store,
-      directory: directory,
       options: options,
       requireDryRun: requireDryRun,
     );
@@ -304,74 +348,100 @@ Future<void> main(List<String> argv) async {
   );
 }
 
-Future<void> _serve({
-  required bool requireDryRun,
+/// The REST surface both doors answer with, composed once out of what this binary carries.
+///
+/// ONE of these exists per process, and there is no second place that builds one. Which steps a
+/// request can name is decided by [catalogue], which was resolved against the registry this binary
+/// was compiled with — so a run started over the surface and a run started at this command line
+/// cannot resolve different plugin sets, rather than resolving the same one by agreement.
+DeploymentApi _surface({
   required Machine machine,
   required Catalogue catalogue,
   required FileRunStore store,
-  required RunDirectory directory,
+  required bool requireDryRun,
+}) => DeploymentApi(
+  programs: ProgramsEndpoint(catalogue),
+  runs: RunsEndpoint(
+    store: store,
+    launcher: DetachedLauncher(
+      executable: Platform.resolvedExecutable,
+      workingDirectory: Directory.current.path,
+      newRunId: () => _newRunId(machine),
+    ),
+    catalogue: catalogue,
+    gate: Gate(store, requireDryRun: requireDryRun),
+    json: const RecordCodec(),
+    commit: () => _commit(machine),
+  ),
+  events: EventsEndpoint(store: store, json: const RecordCodec()),
+);
+
+/// Runs the resident service: the surface on an address, for callers that open no session.
+///
+/// What it stands on and what it demands are read here and judged by [ResidentService], which is
+/// where those arguments and their refusals are stated. This function turns each refusal into the
+/// exit code an operator's tooling reads and nothing else.
+///
+/// THE TOKEN FILE IS NAMED HERE AND READ THERE. `ListeningHttpServer.serve` reads it itself before
+/// it binds, so a machine whose token was never placed refuses to start rather than standing on an
+/// address while nothing guards it — and reading it there rather than here is what lets a token be
+/// rotated under a running service (ansiwise-rest#1). There is no default and no way to waive it.
+Future<void> _residentService({
+  required Machine machine,
+  required Catalogue catalogue,
+  required FileRunStore store,
+  required bool requireDryRun,
   required ArgResults options,
 }) async {
-  final DeploymentApi api = DeploymentApi(
-    programs: ProgramsEndpoint(catalogue),
-    runs: RunsEndpoint(
-      store: store,
-      launcher: DetachedLauncher(
-        executable: Platform.resolvedExecutable,
-        workingDirectory: Directory.current.path,
-        newRunId: () => _newRunId(machine),
-      ),
-      catalogue: catalogue,
-      gate: Gate(store, requireDryRun: requireDryRun),
-      json: const RecordCodec(),
-      commit: () => _commit(machine),
-    ),
-    events: EventsEndpoint(store: store, json: const RecordCodec()),
-  );
-
-  // Two ways in, chosen by the caller. The channel form is how the operator app reaches a machine
-  // it has an SSH session on — including the FIRST installation, where no service exists yet to
-  // listen — and stays the default. The listening form is what an installed machine runs as a
-  // resident service, so a manager can start a run and come back to it without holding a session
-  // open for the whole of it.
-  if (options.option('listen') case final String address) {
-    // THE FILE, NOT ITS CONTENTS. `ListeningHttpServer.serve` reads it itself before it binds, so a
-    // machine whose token was never placed refuses to start rather than standing on an address while
-    // nothing guards it — and reading it there rather than here is what lets a token be rotated
-    // under a running service (ansiwise-rest#1). There is no default and no way to waive it.
-    final String? path = options.option('service-token-file');
-    if (path == null || path.isEmpty) {
-      stderr.writeln('--listen needs --service-token-file: an address is authenticated by nothing');
-      stderr.writeln('a session is authenticated by sshd; an address is authenticated by this');
-      exit(64);
-    }
-    final ServiceTokenFile tokens = ServiceTokenFile(path);
-
-    try {
-      await ListeningHttpServer(api, address: address, tokens: tokens).serve(
-        // Written once the bind stands, because that is when the port is a fact: an address asked
-        // for as port 0 is answered with the port the operating system chose, and a service's
-        // journal says where the surface actually is rather than where it was asked to be.
-        onBound: (HttpServer bound) => stdout.writeln('serving on ${_boundName(bound)}'),
-      );
-    } on FormatException catch (bad) {
-      stderr.writeln(bad.message);
-      exit(64);
-    } on SocketException catch (bad) {
-      stderr.writeln('cannot serve on "$address": ${bad.message}');
-      exit(69);
-    }
-    return;
+  final ResidentService service;
+  try {
+    service = ResidentService.of(
+      address: options.option(ResidentService.addressOption),
+      serviceTokenFile: options.option(ResidentService.tokenFileOption),
+    );
+  } on ResidentServiceRefused catch (refused) {
+    stderr.writeln(refused.because);
+    exit(64);
   }
 
-  // The session's own standard input and output are the connection. Nothing listens.
-  await ChannelHttpServer(api, incoming: stdin, outgoing: stdout).serve();
+  try {
+    await service.serve(
+      _surface(machine: machine, catalogue: catalogue, store: store, requireDryRun: requireDryRun),
+      // Written once the bind stands, because that is when the port is a fact: an address asked for
+      // as port 0 is answered with the port the operating system chose, and a service's journal
+      // says where the surface actually is rather than where it was asked to be.
+      standing: (HttpServer bound) => stdout.writeln(ResidentService.announcement(bound)),
+    );
+  } on FormatException catch (bad) {
+    stderr.writeln(bad.message);
+    exit(64);
+  } on SocketException catch (bad) {
+    stderr.writeln('cannot serve on "${service.address}": ${bad.message}');
+    exit(69);
+  } on FileSystemException catch (unreadable) {
+    // The file `install-service` is the one that puts there. Reaching this means the unit was
+    // enabled without it, or something cleared the machine of credentials — and a stack trace names
+    // a Dart call rather than the path an operator has to put back.
+    stderr.writeln(
+      'cannot read the tokens at "${service.serviceTokenFile}": ${unreadable.osError?.message ?? unreadable.message}',
+    );
+    stderr.writeln(
+      'install-service writes that file; without it no caller can be told apart from any other',
+    );
+    exit(66);
+    // Caught because `ServiceTokenFile.read` raises this for a file an operator wrote by hand, not
+    // for a fault of the code, and its own contract names it as one of exactly two failures
+    // anything acting on a failed start reads. A type neither of them names is a stack trace where
+    // that sentence belongs.
+    // ignore: avoid_catching_errors
+  } on StateError catch (empty) {
+    stderr.writeln('"${service.serviceTokenFile}" holds no token: ${empty.message}');
+    stderr.writeln(
+      'a service accepting every caller is not what an empty file asks for, so it refuses instead',
+    );
+    exit(66);
+  }
 }
-
-/// Where [bound] stands, as a caller would dial it: `host:port`, or the path of a socket file.
-String _boundName(HttpServer bound) => bound.address.type == InternetAddressType.unix
-    ? bound.address.address
-    : '${bound.address.address}:${bound.port}';
 
 /// Places the service that makes this binary reachable after the machine restarts, and returns the
 /// exit code the process ends with.
@@ -422,15 +492,25 @@ Future<int> _installService({
     return 64;
   }
 
-  final String listen = options.option('listen') ?? '';
-  final String tokenFile = options.option('service-token-file') ?? '';
-  if (listen.isEmpty || tokenFile.isEmpty) {
+  // THE INSTALLER IS INVOKED THE WAY THE SERVICE IS TO BE INVOKED, and judged by the same type
+  // that judges the service. A second wording of "these two are required" here would be a second
+  // statement of the service's own arguments, kept by something that cannot see them change.
+  final ResidentService service;
+  try {
+    service = ResidentService.of(
+      address: options.option(ResidentService.addressOption),
+      serviceTokenFile: options.option(ResidentService.tokenFileOption),
+    );
+  } on ResidentServiceRefused catch (refused) {
+    stderr.writeln(refused.because);
     stderr.writeln(
-      'install-service needs --listen and --service-token-file: they are what the unit starts the '
-      'service with, and there is no default for either',
+      'they are what the unit starts the service with, and this call is where the '
+      'unit is written',
     );
     return 64;
   }
+  final String listen = service.address;
+  final String tokenFile = service.serviceTokenFile;
 
   final ServiceInstallation installation = ServiceInstallation(
     unit: serviceUnit,

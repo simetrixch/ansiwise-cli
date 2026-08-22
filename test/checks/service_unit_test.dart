@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:ansiwise_checks_tree/ansiwise_checks_tree.dart';
 import 'package:ansiwise_cli/service_installation.dart';
 import 'package:ansiwise_cli/service_unit.dart';
+import 'package:ansiwise_rest/ansiwise_rest.dart';
 import 'package:test/test.dart';
 
 import '../../tool/gate/service_unit.dart';
@@ -104,11 +105,22 @@ Future<void> main() async {
       expect(
         rendered(),
         contains(
-          'ExecStart=/usr/local/bin/ansiwise serve --listen $tailnetAddress '
-          '--service-token-file /etc/ansiwise/service-token',
+          'ExecStart=/usr/local/bin/ansiwise ${ResidentService.program} '
+          '--${ResidentService.addressOption} $tailnetAddress '
+          '--${ResidentService.tokenFileOption} /etc/ansiwise/service-token',
         ),
       );
       expect(rendered(), contains('WorkingDirectory=/srv/ansiwise-catalog'));
+    });
+
+    test('THE PLANTED DEFECT: it does not start the door that serves one session', () {
+      // The unit starts a RESIDENT service. A unit that named the session door would come up, read
+      // its own standard input for a connection nobody opened, and be restarted for ever — with
+      // nothing on the machine saying that the wrong one of two programs was placed.
+      expect(
+        rendered().split('\n').firstWhere((String each) => each.startsWith('ExecStart=')),
+        isNot(contains(' ${ResidentService.sessionProgram} ')),
+      );
     });
 
     for (final MapEntry<String, String> line in ServiceInstallation.requiredLines.entries) {

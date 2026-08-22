@@ -1,8 +1,8 @@
 // GENERATED from ansiwise.service by tool/build.dart. Do not edit.
 //
-// The unit's ExecStart is composed from this binary's own option names, so a unit
-// kept anywhere else is a second statement of an interface only this repository
-// decides. It travels inside the binary, and this file is how it gets in.
+// The unit's ExecStart is composed at run time from the words the binary itself
+// holds, so a unit kept anywhere else is a second statement of an interface it
+// cannot see change. It travels inside the binary, and this file is how it gets in.
 //
 // The text is ansiwise.service. Edit that and build; a check reports a copy
 // here that says anything else.

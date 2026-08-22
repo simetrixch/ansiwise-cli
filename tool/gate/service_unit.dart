@@ -1,12 +1,13 @@
 /// Writing `lib/service_unit.dart` out of the unit file the binary installs itself under.
 ///
-/// **Why the unit is turned into source at all.** Its `ExecStart` is composed from this binary's
-/// OWN option names — `--listen`, `--service-token-file`, `--answers` — so a unit kept anywhere else
-/// is a second statement of an interface only this repository decides. Rename an option here and a
-/// unit rendered from a template one repository over goes on writing the old one: the service then
-/// starts, the process refuses the option it was handed, and what reports it is a dead service on a
-/// machine nobody is watching. Carried as source, the unit is compiled against the same names, and
-/// the check that reads it goes red in this tree instead.
+/// **Why the unit is turned into source at all.** Its `ExecStart` is composed at run time out of the
+/// words the running binary itself holds — the program that serves and its two arguments, which the
+/// REST surface states, and the three this binary adds for where an installation stands — so a unit
+/// kept anywhere else is a second statement of an interface it cannot see change. Rename one and a
+/// unit rendered from a template one repository over goes on writing the old spelling: the service
+/// then starts, the process refuses the argument it was handed, and what reports it is a dead
+/// service on a machine nobody is watching. Carried as source, the unit is rendered from the same
+/// constants the binary parses, and the check that reads it goes red in this tree instead.
 ///
 /// **Why a unit FILE and not a string composed in Dart.** `ansiwise.service` is the text the service
 /// manager reads, in the shape it reads it, so it can be diffed against what stands on a machine and
@@ -67,9 +68,11 @@ String serviceUnitSource(String unit) {
   final StringBuffer out = StringBuffer()
     ..writeln('// GENERATED from $serviceUnitFileName by tool/build.dart. Do not edit.')
     ..writeln('//')
-    ..writeln("// The unit's ExecStart is composed from this binary's own option names, so a unit")
-    ..writeln('// kept anywhere else is a second statement of an interface only this repository')
-    ..writeln('// decides. It travels inside the binary, and this file is how it gets in.')
+    ..writeln("// The unit's ExecStart is composed at run time from the words the binary itself")
+    ..writeln('// holds, so a unit kept anywhere else is a second statement of an interface it')
+    ..writeln(
+      '// cannot see change. It travels inside the binary, and this file is how it gets in.',
+    )
     ..writeln('//')
     ..writeln('// The text is $serviceUnitFileName. Edit that and build; a check reports a copy')
     ..writeln('// here that says anything else.')

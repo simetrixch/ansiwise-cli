@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:ansiwise_checks_tree/ansiwise_checks_tree.dart';
 import 'package:test/test.dart';
 
-/// serve-listen — the resident entry of the surface: `serve --listen <address>` binds, says where
+/// the resident service — `service --listen <address>` binds, says where
 /// it stands, and answers over that address.
 ///
 /// This is the door a manager uses on an INSTALLED machine, where nobody holds an SSH session open
@@ -22,7 +22,7 @@ Future<void> main() async {
   // here is this binary against an installation's configuration, and a clone of this repository
   // standing alone has none.
   if (!installationIsFindable) {
-    test('serve-listen', () {}, skip: installationNotFound);
+    test('service', () {}, skip: installationNotFound);
     return;
   }
 
@@ -34,22 +34,22 @@ Future<void> main() async {
   // given one: the PATH may stand in argv, the VALUE never may.
   late Directory held;
   late String tokenFile;
-  const String tokenValue = 'a-token-for-the-serve-listen-check';
+  const String tokenValue = 'a-token-for-the-resident-service-check';
 
   setUp(() {
-    held = Directory.systemTemp.createTempSync('ansiwise-serve-listen');
+    held = Directory.systemTemp.createTempSync('ansiwise-resident-service');
     tokenFile = '${held.path}/token';
     File(tokenFile).writeAsStringSync(tokenValue);
   });
 
   tearDown(() => held.deleteSync(recursive: true));
 
-  group('serve-listen', () {
+  group('service', () {
     test('binds the address, announces where it stands, and answers over it', () async {
       final Process service = await Process.start('dart', <String>[
         'run',
         'bin/ansiwise.dart',
-        'serve',
+        'service',
         '--listen',
         '127.0.0.1:0',
         '--service-token-file',
@@ -101,7 +101,7 @@ Future<void> main() async {
       final ProcessResult refused = await Process.run('dart', <String>[
         'run',
         'bin/ansiwise.dart',
-        'serve',
+        'service',
         '--listen',
         'nonsense',
         '--service-token-file',
@@ -151,7 +151,7 @@ Future<void> main() async {
       final Process service = await Process.start('dart', <String>[
         'run',
         'bin/ansiwise.dart',
-        'serve',
+        'service',
         '--listen',
         '127.0.0.1:0',
         '--programs',
@@ -166,11 +166,61 @@ Future<void> main() async {
       expect(complained, contains('authenticated by nothing'));
     }, timeout: const Timeout(Duration(minutes: 2)));
 
+    test('a token file named but not there refuses by its path, not with a stack trace', () async {
+      // What a unit enabled before install-service ran meets, and what an operator who cleared the
+      // machine of credentials meets. The path they have to put back is the whole of the answer.
+      final ProcessResult refused = await Process.run('dart', <String>[
+        'run',
+        'bin/ansiwise.dart',
+        'service',
+        '--listen',
+        '127.0.0.1:0',
+        '--service-token-file',
+        '${held.path}/never-placed',
+        '--programs',
+        programs,
+        '--config',
+        configuration,
+      ], workingDirectory: Directory.current.path);
+
+      expect(refused.exitCode, 66, reason: 'stderr:\n${refused.stderr}');
+      expect(refused.stderr, contains('never-placed'));
+      expect(refused.stderr, contains('install-service'));
+      expect(
+        refused.stderr,
+        isNot(contains('#0')),
+        reason: 'a stack frame is what stands where the sentence belongs',
+      );
+    }, timeout: const Timeout(Duration(minutes: 2)));
+
+    test('a token file holding nothing refuses rather than serving openly', () async {
+      final String empty = '${held.path}/empty-token';
+      File(empty).writeAsStringSync('   \n');
+
+      final ProcessResult refused = await Process.run('dart', <String>[
+        'run',
+        'bin/ansiwise.dart',
+        'service',
+        '--listen',
+        '127.0.0.1:0',
+        '--service-token-file',
+        empty,
+        '--programs',
+        programs,
+        '--config',
+        configuration,
+      ], workingDirectory: Directory.current.path);
+
+      expect(refused.exitCode, 66, reason: 'stderr:\n${refused.stderr}');
+      expect(refused.stderr, contains('holds no token'));
+      expect(refused.stderr, isNot(contains('#0')));
+    }, timeout: const Timeout(Duration(minutes: 2)));
+
     test('a caller on the address without the token is refused, and told nothing else', () async {
       final Process service = await Process.start('dart', <String>[
         'run',
         'bin/ansiwise.dart',
-        'serve',
+        'service',
         '--listen',
         '127.0.0.1:0',
         '--service-token-file',

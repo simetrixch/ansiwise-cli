@@ -18,6 +18,7 @@
 library;
 
 import 'package:ansiwise_core/ansiwise_core.dart';
+import 'package:ansiwise_rest/ansiwise_rest.dart';
 
 import 'service_unit.dart';
 
@@ -144,13 +145,18 @@ final class ServiceInstallation {
   ///
   /// The same options this installer was given, which is what makes the running service and the
   /// invocation that installed it one statement rather than two that can disagree.
+  ///
+  /// **The service's own half is composed by the service**, in [ResidentService.commandOf]: the
+  /// word that starts it and the names of its two arguments belong to the package the surface lives
+  /// in, and a unit that spelled them out here would go on writing the old spelling after a rename
+  /// there. The three that follow are this BINARY's — where the programs stand, which configuration
+  /// is active, where records are kept — and only this repository can state them.
   List<String> get command => <String>[
-    executable,
-    'serve',
-    '--listen',
-    listen,
-    '--service-token-file',
-    serviceTokenFile,
+    ...ResidentService.commandOf(
+      executable: executable,
+      address: listen,
+      serviceTokenFile: serviceTokenFile,
+    ),
     '--programs',
     programs,
     '--config',
