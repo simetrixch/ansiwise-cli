@@ -42,9 +42,10 @@ config-validity: test/checks/config_validity_test.dart
 # and the configuration is written in one repository while the binary is built from another, so
 # nothing but a check that reads both can notice.
 configuration-composes: test/checks/configuration_composes_test.dart
-# The one executable that travels to a machine is compiled from the composition root, and a compiler
-# that refused is reported as a failure carrying its own words instead of as a binary nobody has. The
-# directory the artifact goes into is made first, because the compiler writes none.
+# Every executable that travels to a machine is compiled from the composition root of this package,
+# one per entry point tool/build.dart names, and a compiler that refused is reported as a failure
+# carrying its own words instead of as a binary nobody has. The directory the artifact goes into is
+# made first, because the compiler writes none.
 binary-build: test/checks/binary_build_test.dart
 # Which packages of a tree the gate is about to check — the denominator every other check is run once
 # per entry of. A manifest at a root with no code declares a workspace and is not counted as a
@@ -73,9 +74,12 @@ version-guard: test/checks/version_guard_test.dart
 # .github/workflows/release.yml triggers on — READ from that file rather than restated in Dart — and
 # pushed only when a person typed both. The two things no glob can state are stated in Dart and
 # checked here: a number carries no leading zero, and alpha is less ripe than stable, which is what
-# decides whether the release page marks a pre-release. What this binary is released under is what
-# place-ansiwise then puts on every machine, so a tag typed straight into git is a version nobody
-# proposed and nothing held to anything.
+# decides whether the release page marks a pre-release. What these binaries are released under is
+# what place-ansiwise then puts on every machine, so a tag typed straight into git is a version
+# nobody proposed and nothing held to anything. And the release carries ONE FILE PER BINARY
+# tool/build.dart writes, named so that one address reaches either — the workflow's list is held
+# against that map here, because a release attaching one of the two leaves a machine with a service
+# that answers and runs nothing.
 release: test/checks/release_test.dart
 
 # Every subcommand that executes no step starts under the installation's own configuration. `serve`

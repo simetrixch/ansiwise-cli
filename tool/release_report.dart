@@ -6,17 +6,9 @@
 /// nothing can read is a screen nobody can hold to anything.
 library;
 
+import 'release_assets.dart';
 import 'release_tag_filter.dart';
 import 'release_versions.dart';
-
-/// The file the release carries, as .github/workflows/release.yml names it in `ARTEFACT`.
-///
-/// THIS IS THE ONE STRING TWO REPOSITORIES HAVE TO AGREE ON. hostyour-manager's place-ansiwise
-/// fetches it by this name from the release named [tag], and digita-deploy
-/// ansiwise/programs/deploy-cluster.yaml fetches it again on the same machine. It is spelled here so
-/// that what the release program tells a person to expect and what the workflow attaches are held
-/// against each other by a check rather than by two people reading two files.
-String artefactFor(String tag) => 'ansiwise-$tag-linux-x64';
 
 /// What one invocation of the release program did.
 final class ReleaseOutcome {
@@ -49,8 +41,9 @@ final class ReleaseOutcome {
         'release: OK — the tag $tag is on $remote, and pushing it is the whole of what starts a '
         'release\n'
         '  $bumped\n'
-        '  $releaseWorkflowPath runs the gate, compiles the binary for linux-x64 and attaches\n'
-        '  ${artefactFor(tag)} to a GitHub Release named $tag,\n'
+        '  $releaseWorkflowPath runs the gate, compiles the binaries for linux-x64 and attaches\n'
+        '  them to a GitHub Release named $tag:\n'
+        '${assetsFor(tag).map((String each) => '    $each\n').join()}'
         '  ${channel.isPreRelease ? 'marked as a pre-release because ${channel.name} is not the ripest channel' : 'published plainly, because ${channel.name} is the ripest channel'}\n'
         '  gh run watch --repo simetrixch/ansiwise-cli   follows it\n'
         '  THE CHANNEL IS A CEILING, NOT A DEPLOYMENT: ${channel.name} reaches ${channel.reaches}.\n'
@@ -111,7 +104,9 @@ String notesFor({
       '(hostyour-manager/shared/release.ts:8).',
     )
     ..writeln('')
-    ..writeln('Binary: `${artefactFor(release.tag)}`, linux-x64, attached below.')
+    ..writeln('Binaries, linux-x64, attached below — a machine is given every one of them:')
+    ..writeln('')
+    ..writeAll(assetsFor(release.tag).map((String each) => '- `$each`\n'))
     ..writeln('')
     ..writeln(
       previous == null
@@ -240,7 +235,9 @@ WHAT HAPPENS WHEN YOU TYPE THEM. The working tree has to be clean. The version p
 is set to the one you typed and that bump is committed — and when the manifest already declares it,
 nothing is committed and the tag names HEAD as it stands. An ANNOTATED tag is then created, HEAD is
 pushed and the tag is pushed, and that is all that happens here. The workflow runs the gate, compiles
-the binary for linux-x64 and attaches it to a GitHub Release named by the tag.
+the binaries for linux-x64 and attaches each of them to a GitHub Release named by the tag — one file
+per executable, named <binary>-<tag>-linux-x64, because a machine runs a program with `ansiwise` and
+serves the REST surface with `ansiwise-rest` and needs both.
 
 WHAT DOES NOT HAPPEN. No release is created here — the workflow creates it, writes its notes and
 marks a pre-release. And no machine gets the new binary: hostyour-manager's place-ansiwise installs

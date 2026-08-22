@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../tool/build.dart' show binaries;
+import '../../tool/release_assets.dart';
 import '../../tool/release_command.dart';
 import '../../tool/release_git.dart';
 import '../../tool/release_manifest.dart';
@@ -27,6 +29,14 @@ import '../../tool/release_versions.dart';
 /// the file, which a program with its own copy of the grammar could not do. The two things the
 /// program DOES state — that a number carries no leading zero, and that alpha is less ripe than
 /// stable — are the two a glob cannot say, and each has a counter-probe of its own.
+///
+/// **What a release CARRIES is read the same way.** The workflow states its binaries once, in
+/// `env.BINARIES`, and both of its jobs compose `<binary>-<tag>-linux-x64` from that list. What is
+/// held here is that the list is tool/build.dart's `binaries` and that the shell composes the name
+/// tool/release_assets.dart states — a workflow naming one binary of two, or a name nothing builds,
+/// is answered by a planted file below. WHAT NO CHECK HERE CAN SHOW is the run itself: whether the
+/// upload/download pair really carries both files is decided by GitHub, and this workflow has never
+/// run.
 void main() {
   group('which tags start a release', () {
     test('is read from the workflow this repository really has', () {
@@ -542,8 +552,10 @@ void main() {
       expect(outcome.text, contains('the tag $tag is on origin'));
       expect(
         outcome.text,
-        contains('ansiwise-$tag-linux-x64'),
-        reason: 'the person has to read the name of the file the release will carry',
+        allOf(contains('ansiwise-$tag-linux-x64'), contains('ansiwise-rest-$tag-linux-x64')),
+        reason:
+            'the person has to read the name of EVERY file the release will carry — a screen '
+            'naming one of two reads as a release that carries one',
       );
       expect(
         outcome.text,
@@ -882,7 +894,16 @@ void main() {
       expect(outcome.isGreen, isTrue);
       expect(outcome.isPreRelease, isTrue, reason: 'beta is not the ripest channel');
       expect(outcome.page, contains('Channel **beta** — this release may run in dev and test.'));
-      expect(outcome.page, contains('ansiwise-0.2.0-beta-20260821194500-linux-x64'));
+      expect(
+        outcome.page,
+        allOf(
+          contains('- `ansiwise-0.2.0-beta-20260821194500-linux-x64`'),
+          contains('- `ansiwise-rest-0.2.0-beta-20260821194500-linux-x64`'),
+        ),
+        reason:
+            'the page is where somebody looks for what a release carries, and it carries two files '
+            'because a machine runs nothing with only one of them',
+      );
       expect(outcome.page, contains('## Changes since 0.1.0-alpha-20260801100000'));
       expect(outcome.page, contains('- Narrow the tag filter'));
       expect(outcome.page, contains('- Carry the Elastic License 2.0'));
@@ -977,18 +998,79 @@ void main() {
     });
   });
 
-  group('the name the release carries', () {
-    test('is the one string the workflow attaches and two repositories then fetch', () {
+  group('the names the release carries', () {
+    test('are one file per binary, spelled so one address composes both', () {
+      expect(assetsFor(_aTag), <String>[
+        'ansiwise-$_aTag-linux-x64',
+        'ansiwise-rest-$_aTag-linux-x64',
+      ], reason: 'these two strings are what hostyour-manager and digita-deploy fetch by name');
       expect(
-        artefactFor('0.1.0-alpha-20260821194500'),
-        'ansiwise-0.1.0-alpha-20260821194500-linux-x64',
+        assetsFor(_aTag).map((String each) => each.split('-$_aTag-').first),
+        binaries.keys,
+        reason:
+            'the leading part of an asset name is the name the binary carries on the machine — the '
+            'name tool/build.dart writes and the name each binary looks for the other under. That '
+            'is what lets ONE address fill in <name> and <version> and reach either file, instead '
+            'of a second setting able to name a second release',
+      );
+    });
+
+    test('are the set the workflow really builds and attaches', () {
+      final String workflow = File(releaseWorkflowPath).readAsStringSync();
+
+      expect(
+        binariesIn(workflow),
+        binaries.keys.toList(),
+        reason:
+            'the workflow states the list once in `env.BINARIES` and both jobs compose from it; a '
+            'list that is not tool/build.dart\'s is a release attaching a file nothing built or '
+            'leaving behind a binary the build wrote',
       );
       expect(
-        File(releaseWorkflowPath).readAsStringSync(),
-        contains(r'ARTEFACT: ansiwise-${{ github.ref_name }}-linux-x64'),
+        assetFor(binary: r'$binary', tag: r'$TAG').allMatches(workflow),
+        hasLength(2),
         reason:
-            'what this program tells a person to expect and what the workflow attaches are one '
-            'name, and hostyour-manager and digita-deploy fetch it by that name',
+            'the build job moves each built binary to this name and the publish job requires a '
+            'file behind the same name before it creates the release. Both are the shell spelling '
+            'of assetFor, so a third spelling anywhere is a third answer to what a release carries',
+      );
+    });
+
+    test('COUNTER-PROBE: a workflow naming one binary of the two is reported', () {
+      // PLANTED: the list as it stood while this repository produced one executable. Every other
+      // line of the file is the real one, so what is being answered here is the list alone.
+      expect(
+        binariesIn(_workflowBuilding('ansiwise')),
+        isNot(binaries.keys.toList()),
+        reason: 'a release cut from this workflow carries no ansiwise-rest, and nothing said so',
+      );
+      expect(
+        binariesIn(_workflowBuilding('ansiwise ansiwise-rest')),
+        binaries.keys.toList(),
+        reason: 'the innocent case, or nothing means anything',
+      );
+    });
+
+    test('COUNTER-PROBE: a workflow naming a binary nothing builds is reported', () {
+      // PLANTED: a name tool/build.dart does not write. The build job would find no such file and
+      // stop; this is what says so before a tag is ever pushed.
+      expect(binariesIn(_workflowBuilding('ansiwise ansiwise-serve')), <String>[
+        'ansiwise',
+        'ansiwise-serve',
+      ]);
+      expect(
+        binariesIn(_workflowBuilding('ansiwise ansiwise-serve')),
+        isNot(binaries.keys.toList()),
+      );
+    });
+
+    test('COUNTER-PROBE: a list nowhere in the file is no list, not every binary', () {
+      expect(
+        binariesIn('name: release\n\njobs:\n  build:\n    env:\n      BINARIES: ansiwise\n'),
+        isEmpty,
+        reason:
+            'a job may carry an env of its own, and reading one as the release list would let a '
+            'file that states nothing pass for the file that states everything',
       );
     });
   });
@@ -1059,6 +1141,27 @@ const String _fourteenDigits =
     '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]';
 
 String _version(Proposal proposal) => proposal.version;
+
+/// The tag the asset names below are composed for, as a person would have released it.
+const String _aTag = '0.1.0-alpha-20260821194500';
+
+/// A workflow whose top-level `env.BINARIES` states [names], and the keys around it a real one has.
+///
+/// It carries a `BINARIES` inside a job as well, which is not the list a release is cut from: a
+/// reader that took the first one it saw would report this planted file as the real set.
+String _workflowBuilding(String names) =>
+    'name: release\n'
+    '\n'
+    'permissions:\n'
+    '  contents: read\n'
+    '\n'
+    'env:\n'
+    '  BINARIES: $names\n'
+    '\n'
+    'jobs:\n'
+    '  build:\n'
+    '    env:\n'
+    '      BINARIES: ansiwise-a-job-said-this\n';
 
 /// A workflow file stating [patterns] under `on.push.tags`, and the keys around it a real one has.
 String _workflowTriggeringOn(List<String> patterns) =>

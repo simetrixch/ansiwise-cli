@@ -1,4 +1,4 @@
-# release — a pushed tag becomes a GitHub Release carrying the binary a machine is given.
+# release — a pushed tag becomes a GitHub Release carrying the binaries a machine is given.
 #
 # WHAT STARTS IT. A pushed tag, and nothing else. The version and the channel in it are typed by a
 # person: which release a change deserves and how ripe it is are decisions, and nothing here takes
@@ -9,36 +9,51 @@
 # CREATES NO RELEASE: the release, its notes and the pre-release marking are this file's work, which
 # is why it needs no `gh` and has no `gh` preflight.
 #
-# WHAT THE ARTEFACT IS, and why it is one file rather than an archive. hostyour-manager's
-# place-ansiwise fetches it with `curl -fsSL "$downloadUrl" -o "$tmp"` and installs THAT file with
+# WHAT THE ASSETS ARE, and why each is one file rather than an archive. hostyour-manager's
+# place-ansiwise fetches with `curl -fsSL "$downloadUrl" -o "$tmp"` and installs THAT file with
 # `install -m0755` as /usr/local/bin/ansiwise-<version>
 # (hostyour-manager/server/domains/runs/defs/place-ansiwise.ts). It unpacks nothing, so what is
 # attached here is the executable itself. The upload-artifact/download-artifact pair between the
 # build job and the publish job drops the executable bit — it carries files through a zip — and that
 # reaches nothing: the mode on the machine is the one `install -m0755` writes.
 #
-# WHICH SYSTEM IT IS BUILT FOR. linux-x64, and only that one. `dart compile exe` produces a binary
+# THERE ARE TWO OF THEM, one per executable tool/build.dart writes, and a machine needs both:
+# `ansiwise` runs a declared program, and `ansiwise-rest` serves the REST surface and starts every
+# run by invoking `ansiwise` standing beside it (bin/ansiwise_rest.dart, `deploymentToolBeside`),
+# refusing to start when it is not there. A machine given one of the two comes up with a service
+# that answers and runs nothing.
+#
+# HOW THEY ARE NAMED, and what that decides two repositories away. `<binary>-<tag>-linux-x64`, where
+# <binary> is the name the executable carries ON THE MACHINE — the same name tool/build.dart writes
+# and the same name each binary looks for the other under. So ONE address composes both files,
+# .../releases/download/<version>/<name>-<version>-linux-x64, and a fetcher fills in which binary it
+# wants and which version it pinned. Two addresses, one per binary, would be two settings able to
+# name two different releases, and then what stands on a machine is no longer what the one pin says.
+# tool/release_assets.dart spells the composition, and the release check holds this file against it.
+#
+# WHICH SYSTEM THEY ARE BUILT FOR. linux-x64, and only that one. `dart compile exe` produces a binary
 # for the system it runs on, so each target would be a runner of its own — as the three of
-# ansiwise-client are. THREE PLACES TAKE THIS FILE and every one of them is a Linux machine:
-# hostyour-manager's place-ansiwise fetches it with `curl -fsSL` onto the fresh Ubuntu that
+# ansiwise-client are. THREE PLACES TAKE THESE FILES and every one of them is a Linux machine:
+# hostyour-manager's place-ansiwise fetches with `curl -fsSL` onto the fresh Ubuntu that
 # hostyour-cloud platform/versions.yaml's `ubuntu` pin names; digita-deploy
-# ansiwise/programs/deploy-cluster.yaml:714-719 fetches it again on that same machine as an
+# ansiwise/programs/deploy-cluster.yaml:714-719 fetches again on that same machine as an
 # `install_pinned_tool` row — which asks today for `ansiwise-linux-amd64` under a `v0.1.0` tag, a
 # name this workflow does not attach and a tag its filter at `on.push.tags` cannot even produce; and
-# ansiwise-client places it from bytes an operator hands over (`MachineBinary.bytes`,
-# lib/infrastructure/session_transport.dart:146-171), fetching nothing itself. Nobody takes a Windows
-# or a macOS build — a developer on either runs `dart run bin/ansiwise.dart` out of this checkout —
-# so a second and a third runner would attach files no caller asks for. linux-arm64 is not built
-# either: no caller asks for one — the three above all run on x64 — and an artefact nobody fetches
-# must not be named in a release as though somebody did. GitHub's arm64 runners became reachable
-# when this repository was made public; what stands in the way now is a taker, not a runner.
+# ansiwise-client places from bytes an operator hands over (`MachineBinary.bytes`,
+# lib/infrastructure/session_transport.dart:146-171), fetching nothing itself. Each of those three
+# takes ONE of the two today; which files they fetch is decided where they are written, not here.
+# Nobody takes a Windows or a macOS build — a developer on either runs `dart run bin/ansiwise.dart`
+# out of this checkout — so a second and a third runner would attach files no caller asks for.
+# linux-arm64 is not built either: no caller asks for one — the three above all run on x64 — and an
+# asset nobody fetches must not be named in a release as though somebody did. GitHub's arm64
+# runners became reachable when this repository was made public; what stands in the way now is a
+# taker, not a runner.
 #
 # THE VERSION REACHES NOTHING INSIDE THE BINARY, and that is not an omission. The binary takes no
 # --version flag; what says which version stands on a machine is the NAME of the file the
 # /usr/local/bin/ansiwise symlink points at, which place-ansiwise writes itself from the pin it read
-# (place-ansiwise.ts, `ANSIWISE_BINARY_LINK`). So the tag is carried by the artefact's name and by
-# this release, and a --build-name equivalent would be a second statement of it with nothing reading
-# it.
+# (place-ansiwise.ts, `ANSIWISE_BINARY_LINK`). So the tag is carried by each asset's name and by this
+# release, and a --build-name equivalent would be a second statement of it with nothing reading it.
 #
 # THE DART VERSION IS NOT WRITTEN HERE. tool/gate/pins.dart names the one SDK the checks are true
 # against, and both jobs that install one read it from there in the step after their checkout, so
@@ -97,6 +112,15 @@ concurrency:
   group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
+# WHAT A RELEASE CARRIES, stated once for every job that has to name it. BINARIES is the list
+# tool/build.dart writes, spelled with the names a machine carries them under, and both the build
+# job and the publish job compose `<binary>-$TAG-linux-x64` from it — the composition
+# tool/release_assets.dart states and the release check holds this file against. A second list
+# somewhere would be a second answer to which files a release has.
+env:
+  TAG: ${{ github.ref_name }}
+  BINARIES: ansiwise ansiwise-rest
+
 jobs:
   gate:
     name: the gate
@@ -118,16 +142,19 @@ jobs:
         with:
           sdk: ${{ steps.pin.outputs.dart }}
 
-      # The gate resolves the tree itself — `dart pub get` is its first step — analyses and formats
-      # every package of this repository, compiles the binary once as a check of its own, and
-      # refuses every SDK but the one the step above installed.
+      # The gate resolves the tree itself — `dart pub get` is its first step — analyses, formats and
+      # tests every package of this repository, and refuses every SDK but the one the step above
+      # installed. IT COMPILES NOTHING: the binary-build check drives tool/gate/binary_build.dart
+      # over a scripted toolchain, so what it reads is how a compiler's answer is reported and not
+      # whether this tree compiles. The build job below is where a real `dart compile exe` runs, and
+      # a tree that does not compile fails there.
       #
       # IT DOES NOT RUN EVERY CHECK checks.yaml declares, and the difference is worth knowing before
-      # a green here is read as more than it is. Five of the seventeen read an INSTALLATION tree —
-      # config-validity, configuration-composes, serve-listen, service-unit, subcommands-start — and
-      # a runner has no digita-deploy beside its checkout, so those five SKIP and say so, five times,
-      # in the log. Twelve run. What this job proves is that the binary builds and the tree is sound
-      # on its own; what it cannot prove is that this binary reads a real installation.
+      # a green here is read as more than it is. Five of the eighteen read an INSTALLATION tree —
+      # config-validity, configuration-composes, resident-service, service-unit, subcommands-start —
+      # and a runner has no digita-deploy beside its checkout, so those five SKIP and say so, five
+      # times, in the log. Thirteen run. What this job proves is that the tree is sound on its own;
+      # what it cannot prove is that a binary of it reads a real installation.
       - name: dart run tool/ci.dart
         run: dart run tool/ci.dart
 
@@ -135,8 +162,6 @@ jobs:
     name: linux-x64
     needs: gate
     runs-on: ubuntu-latest
-    env:
-      ARTEFACT: ansiwise-${{ github.ref_name }}-linux-x64
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -160,15 +185,38 @@ jobs:
       # plugins.yaml and lib/service_unit.dart from ansiwise.service BEFORE it compiles, because the
       # compiler reads both as source. A `dart compile exe` invoked directly would compile whatever
       # those two files last held, which is a binary carrying a plugin set nobody declared.
+      #
+      # THE ARGUMENT IS A DIRECTORY: the tool writes one executable per entry of its own `binaries`
+      # map and names each one as the other looks for it, so the names inside are not this file's to
+      # choose. It stops after a failure rather than leaving one of the two behind.
       - name: dart run tool/build.dart
-        run: dart run tool/build.dart "build/$ARTEFACT"
+        run: dart run tool/build.dart build/linux-x64
 
-      # An artefact that is not there must fail this job rather than reach a release as a name with
-      # no file behind it.
+      # The built name is what each binary finds the other under; the released name carries the tag
+      # as well, so every one of them is moved to the name the release attaches it as.
+      #
+      # THE `test -f` IS WHAT CATCHES A MISSING ONE, and `if-no-files-found: error` below cannot do
+      # it: that setting fires when NOTHING was found, so one file of two would upload quietly and
+      # reach the release as a name with no file behind it.
+      - name: name every binary as the release attaches it
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/assets
+          for binary in $BINARIES; do
+            built="build/linux-x64/$binary"
+            test -f "$built" || {
+              echo "build: FAIL — tool/build.dart wrote no $built"
+              exit 1
+            }
+            mv "$built" "build/assets/$binary-$TAG-linux-x64"
+          done
+          ls -l build/assets
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: linux-x64
-          path: build/${{ env.ARTEFACT }}
+          path: build/assets
           if-no-files-found: error
 
   publish:
@@ -177,9 +225,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    env:
-      TAG: ${{ github.ref_name }}
-      ARTEFACT: ansiwise-${{ github.ref_name }}-linux-x64
     steps:
       # fetch-depth: 0 because the notes are read from the history: every tag standing here, to find
       # the release this one follows, and the commit subjects in the range between the two. A shallow
@@ -231,8 +276,12 @@ jobs:
           grep -E '^prerelease=(true|false)$' <<<"$said" >> "$GITHUB_OUTPUT"
           cat release-notes.md
 
-      # The artefact is named outright rather than globbed: a build that produced nothing else would
-      # otherwise publish a release with no binary in it and say nothing about the missing one.
+      # EVERY ASSET IS NAMED OUTRIGHT rather than globbed, and the file behind each name is required
+      # before the release is created: a glob over what the download happened to bring would publish
+      # a release with one binary in it, or with none, and say nothing about the missing one. The
+      # names are composed here the same way the build job composed them, out of the one BINARIES
+      # list this file states, so a disagreement between the two jobs ends this step instead of
+      # ending as a release nobody can fetch from.
       #
       # THE CHANNEL DECIDES THE MARKING AND NOTHING ELSE HERE. alpha and beta are pre-releases —
       # hostyour-manager/shared/release.ts:12 ranks stable as the ripest — so they are marked
@@ -240,13 +289,16 @@ jobs:
       # environment may run the tag, and that ceiling is enforced where deployments are written
       # (release.ts:8), not here: a release published plainly is not a release deployed anywhere.
       #
-      # WHAT THE ADDRESS OF THE PUBLISHED FILE THEN IS, and why it belongs in this comment: it is
-      # what an installation sets ANSIWISE_DOWNLOAD_URL to, with `<version>` where the tag goes —
-      # https://github.com/${{ github.repository }}/releases/download/<version>/ansiwise-<version>-linux-x64
-      # The manager fills both placeholders from the one pin it read
-      # (hostyour-cloud platform/versions.yaml, `cliTools.ansiwise.version`), so the address and the
-      # pin can never name two versions. That fetch carries NO credential — place-ansiwise runs a
-      # plain `curl -fsSL` on the machine — so the asset has to be readable without one.
+      # WHAT THE ADDRESS OF A PUBLISHED FILE THEN IS, and why it belongs in this comment: it is what
+      # an installation sets ANSIWISE_DOWNLOAD_URL to, with `<version>` where the tag goes and
+      # `<name>` where the binary does —
+      # https://github.com/${{ github.repository }}/releases/download/<version>/<name>-<version>-linux-x64
+      # ONE address reaches both files, which is why the binary name stands in front: the manager
+      # fills every placeholder from the one pin it read (hostyour-cloud platform/versions.yaml,
+      # `cliTools.ansiwise.version`), so the address and the pin can never name two versions, and no
+      # second setting can point the second binary at a different release. That fetch carries NO
+      # credential — place-ansiwise runs a plain `curl -fsSL` on the machine — so every asset has to
+      # be readable without one.
       - name: publish the release
         shell: bash
         env:
@@ -254,9 +306,18 @@ jobs:
           PRERELEASE: ${{ steps.notes.outputs.prerelease }}
         run: |
           set -euo pipefail
+          assets=()
+          for binary in $BINARIES; do
+            asset="artefacts/$binary-$TAG-linux-x64"
+            test -f "$asset" || {
+              echo "release: FAIL — the release would name $asset with no file behind it"
+              exit 1
+            }
+            assets+=("$asset")
+          done
           if [ "$PRERELEASE" = true ]; then set -- --prerelease; else set --; fi
           gh release create "$TAG" \
             --title "$TAG" \
             --notes-file release-notes.md \
             "$@" \
-            "artefacts/$ARTEFACT"
+            "${assets[@]}"

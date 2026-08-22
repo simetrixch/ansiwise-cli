@@ -7,10 +7,14 @@ import '../../tool/gate/dart_toolchain.dart';
 import '../../tool/gate/fake_dart_toolchain.dart';
 import '../../tool/gate/real_dart_toolchain.dart';
 
-/// binary-build — the one executable that travels to a machine, compiled from the composition root.
+/// binary-build — an executable that travels to a machine, compiled from the composition root.
+///
+/// ONE ENTRY POINT PER RUN, and tool/build.dart runs it once per entry of its own `binaries` map:
+/// `ansiwise` from bin/ansiwise.dart and `ansiwise-rest` from bin/ansiwise_rest.dart. What is
+/// checked here is one such build, which is why the entry point and the target are both arguments.
 ///
 /// A client reaches a fresh Ubuntu with a username and a password and nothing else on it: no Dart
-/// and no checkout, so what is copied there is this artifact alone. Two answers decide everything
+/// and no checkout, so what is copied there is these artifacts alone. Two answers decide everything
 /// the build reports — the compiler's exit code and the version banner — and the probes below hand
 /// both over to a scripted toolchain, because handing an answer over is the only way to show the
 /// build reads it correctly. No `dart compile` is started here and no executable is produced.
