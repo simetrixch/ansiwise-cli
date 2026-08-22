@@ -50,6 +50,13 @@ Future<void> main(List<String> argv) async {
     exit(64);
   }
 
+  // ANSWERED BEFORE A PROGRAM IS LOOKED FOR. Asking a binary what it is is not a run: it has to
+  // work on a machine that carries the executables and nothing else, which is every machine before
+  // its catalogue is placed.
+  if (answeredVersion(options, stdout)) {
+    return;
+  }
+
   final List<String> rest = options.rest;
   if (options.flag('help') || rest.isEmpty) {
     stdout

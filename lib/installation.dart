@@ -23,6 +23,8 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:ansiwise_core/ansiwise_core.dart';
 
+import 'release_stamp.dart';
+
 /// The one option every program of this repository reads, because each of them needs the
 /// configuration that says which plugins are active.
 const String configurationOption = 'config';
@@ -38,6 +40,14 @@ const String answersOption = 'answers';
 
 /// The quietest level a run writes.
 const String logLevelOption = 'log-level';
+
+/// The flag that makes a binary say which release it is.
+///
+/// **IT IS THE ONLY WAY TO ASK A PLACED BINARY WHAT IT IS.** A machine carries the executables and
+/// nothing else — no checkout, no manifest — so anything holding one against a pin has to ask it.
+/// `install_pinned_tool`, the step that keeps a tool at the version a program pins, decides its
+/// skip on exactly this answer and refuses a tool it cannot ask.
+const String versionFlag = 'version';
 
 /// An installation, opened: its configuration read, its plugins active, and the machine its steps
 /// act through built in front of it.
@@ -101,12 +111,34 @@ final class Installation {
   final String? unwindDisabledBy;
 }
 
+/// Answers [versionFlag] on [out] where it was given, and says whether it was.
+///
+/// ONE LINE AND NOTHING ELSE ON IT. Whatever asks reads the first line and takes the version out of
+/// it, so a banner, a build date or a commit beside the value is a second thing that reader has to
+/// be taught to skip. A binary built without a tag answers `unreleased`, which is deliberately not
+/// shaped like a version: it must not be mistakable for a released one by anything comparing.
+///
+/// It is answered BEFORE a program name is looked for, because asking a binary what it is is not a
+/// run and must work on a machine carrying no programs at all.
+bool answeredVersion(ArgResults options, StringSink out) {
+  if (!options.flag(versionFlag)) {
+    return false;
+  }
+  out.writeln(releaseStamp);
+  return true;
+}
+
 /// Adds the options every program of this repository reads to [parser].
 ///
 /// Stated once so the two entry points cannot describe one option differently — a help text that
 /// disagrees with the other binary's is a help text an operator has to test to trust.
 void addSharedOptions(ArgParser parser) {
   parser
+    ..addFlag(
+      versionFlag,
+      negatable: false,
+      help: 'the release this binary was built at, and nothing else, on one line',
+    )
     ..addOption(programsOption, defaultsTo: 'programs', help: 'where the program files are')
     ..addOption(
       configurationOption,

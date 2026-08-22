@@ -20,6 +20,7 @@ import 'gate/binary_build.dart';
 import 'gate/plugin_set.dart';
 import 'gate/paths.dart';
 import 'gate/real_dart_toolchain.dart';
+import 'gate/release_stamp.dart';
 import 'gate/service_unit.dart';
 
 Future<void> main(List<String> arguments) async {
@@ -40,6 +41,22 @@ Future<void> main(List<String> arguments) async {
   // carried inside the executable, so the compiler has to see it before it compiles anything.
   if (writeServiceUnitSource(package)) {
     stdout.writeln('wrote lib/service_unit.dart from $serviceUnitFileName');
+  }
+
+  // The third generated source, and the last thing written before the compiler runs. A binary that
+  // cannot say which version it is leaves every reader parsing a filename for one — see
+  // tool/gate/release_stamp.dart.
+  final String stamp;
+  try {
+    stamp = stampFor(Platform.environment);
+  } on ReleaseStampRefused catch (refused) {
+    // Read as a failure of this build and not as a crash of it. The value came from an environment
+    // a person or a workflow set, and what they need is the sentence saying which value and why.
+    stderr.writeln('build: FAIL — $refused');
+    exit(2);
+  }
+  if (writeReleaseStamp(package, stamp)) {
+    stdout.writeln('wrote $releaseStampFileName stamping $stamp');
   }
 
   final String directory = arguments.isEmpty ? defaultDirectory : arguments.single;

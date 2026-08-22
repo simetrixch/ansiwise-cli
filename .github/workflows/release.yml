@@ -189,7 +189,18 @@ jobs:
       # THE ARGUMENT IS A DIRECTORY: the tool writes one executable per entry of its own `binaries`
       # map and names each one as the other looks for it, so the names inside are not this file's to
       # choose. It stops after a failure rather than leaving one of the two behind.
+      # THE TAG REACHES THE COMPILER THROUGH THE ENVIRONMENT, and this is the only place a release
+      # is told to the binaries it produces. tool/build.dart writes lib/release_stamp.dart from it
+      # before compiling — the third generated source beside lib/plugins.dart and
+      # lib/service_unit.dart, and for the same reason: the compiler reads source.
+      #
+      # WITHOUT IT A RELEASE SHIPS BINARIES ANSWERING `unreleased`, which is the state this
+      # repository is in for every build that is not a release. Nothing else would notice: the
+      # archive is the right size, the gate is green, and a machine placed from it answers a version
+      # no pin can match, so a pinned-tool step fetches it again on every single run.
       - name: dart run tool/build.dart
+        env:
+          ANSIWISE_RELEASE_TAG: ${{ env.TAG }}
         run: dart run tool/build.dart build/linux-x64
 
       # The built name is what each binary finds the other under; the released name carries the tag

@@ -60,6 +60,11 @@ shared-gate: test/checks/shared_gate_test.dart
 # lib/plugins.dart is what plugins.yaml says — the one file that tells one product's binary from
 # another's, generated so a second product needs a manifest rather than a copy of this repository.
 plugin-set: test/checks/plugin_set_test.dart
+# What the binaries answer when asked which version they are, and the file the compiler reads it
+# out of. A machine carries the executables and nothing else, so anything holding one against a pin
+# has to ASK it — and lib/release_stamp.dart is generated and tracked, so a stamped copy committed
+# here would make every later build on every machine answer a release it is not.
+release-stamp: test/checks/release_stamp_test.dart
 # Every package the gate walks is analysed, formatted and tested, and a package that fails any of
 # the three makes the whole gate answer non-zero.
 package-gate: test/checks/package_gate_test.dart
