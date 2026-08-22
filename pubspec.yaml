@@ -23,64 +23,64 @@ dependencies:
   ansiwise_core:
     git:
       url: https://github.com/simetrixch/ansiwise-core.git
-      ref: master
+      ref: 0.1.0-alpha-20260822220550
   # For the annotations the REST message types under lib/src/rest carry, so an immutable one is
   # checked as immutable.
   meta: ^1.15.0
   ansiwise_kubernetes:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: master
+      ref: 0.1.0-alpha-20260822222514
       path: ansiwise-kubernetes
   ansiwise_vault:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: master
+      ref: 0.1.0-alpha-20260822222514
       path: ansiwise-vault
   ansiwise_vault_kubernetes:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: master
+      ref: 0.1.0-alpha-20260822222514
       path: ansiwise-vault-kubernetes
   ansiwise_helm:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: master
+      ref: 0.1.0-alpha-20260822222514
       path: ansiwise-helm
   ansiwise_host:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: master
+      ref: 0.1.0-alpha-20260822222514
       path: ansiwise-host
   ansiwise_authentik:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
       path: ansiwise-authentik
-      ref: master
+      ref: 0.1.0-alpha-20260822222514
   ansiwise_git:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: master
+      ref: 0.1.0-alpha-20260822222514
       path: ansiwise-git
   ansiwise_cloudflare:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: master
+      ref: 0.1.0-alpha-20260822222514
       path: ansiwise-cloudflare
   ansiwise_versions:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: master
+      ref: 0.1.0-alpha-20260822222514
       path: ansiwise-versions
   ansiwise_headscale:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: master
+      ref: 0.1.0-alpha-20260822222514
       path: ansiwise-headscale
   ansiwise_http:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: master
+      ref: 0.1.0-alpha-20260822222514
       path: ansiwise-http
   args: ^2.7.0
 
@@ -95,7 +95,7 @@ dev_dependencies:
   ansiwise_checks:
     git:
       url: https://github.com/simetrixch/ansiwise-checks.git
-      ref: master
+      ref: 0.1.0-alpha-20260822222211
       path: registry
   # The tree half by name as well, because this package imports it directly for its own
   # tree-analysis check. Reached transitively through the registry half it would resolve and still
@@ -103,5 +103,5 @@ dev_dependencies:
   ansiwise_checks_tree:
     git:
       url: https://github.com/simetrixch/ansiwise-checks.git
-      ref: master
+      ref: 0.1.0-alpha-20260822222211
       path: tree

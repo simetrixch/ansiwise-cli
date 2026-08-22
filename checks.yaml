@@ -81,6 +81,11 @@ version-guard: test/checks/version_guard_test.dart
 # against that map here, because a release attaching one of the two leaves a machine with a service
 # that answers and runs nothing.
 release: test/checks/release_test.dart
+# Every dependency this package resolves out of git names a release tag and never a branch. A
+# package of this family produces no file, so whoever resolves one gets the tree standing at the ref
+# it named — and a branch ref hands this binary a different framework the next time anybody pushes,
+# under the same name. This is the tree that reaches every package of the family at once.
+dependency-pins: test/checks/dependency_pins_test.dart
 
 # Every subcommand that executes no step starts under the installation's own configuration. `serve`
 # comes through the same entry as a run and can be handed no password — its standard input IS the
