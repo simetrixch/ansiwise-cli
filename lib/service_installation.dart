@@ -22,6 +22,13 @@ import 'package:ansiwise_cli/rest.dart';
 
 import 'service_unit.dart';
 
+/// The word that places the service on a machine.
+///
+/// A constant rather than a literal at each of the places that says it — the dispatch that reads
+/// it, the help line that offers it, and the refusal that lists what this binary answers to. Three
+/// spellings of one word is how a rename leaves a binary advertising a program it no longer has.
+const String installServiceProgram = 'install-service';
+
 /// What stands in the way of installing the service.
 final class ServiceInstallationRefused implements Exception {
   /// Refuses [because].

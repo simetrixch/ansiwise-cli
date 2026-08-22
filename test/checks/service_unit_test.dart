@@ -238,7 +238,7 @@ Future<void> main() async {
     Future<ProcessResult> ansiwise(List<String> arguments) async {
       final Process child = await Process.start('dart', <String>[
         'run',
-        'bin/ansiwise.dart',
+        'bin/ansiwise_rest.dart',
         ...arguments,
       ], workingDirectory: Directory.current.path);
       await child.stdin.close();
@@ -313,7 +313,7 @@ Future<void> main() async {
     Future<ProcessResult> ansiwise(List<String> arguments, {String stdinText = ''}) async {
       final Process child = await Process.start('dart', <String>[
         'run',
-        'bin/ansiwise.dart',
+        'bin/ansiwise_rest.dart',
         ...arguments,
         '--programs',
         '$installation/$installationPrograms',
@@ -379,9 +379,16 @@ Future<void> main() async {
     }, timeout: const Timeout(Duration(minutes: 2)));
 
     test('THE INNOCENT NEIGHBOUR: a word the entry does not know is a different refusal', () async {
-      // Every case above expects 64, and an entry that had never heard of `install-service` would
-      // refuse them all too. It refuses differently: an unknown first word is read as the name of a
-      // program, and that is 65 with a sentence naming the programs there are.
+      // Every case above expects 64 for an install-service that was invoked wrongly, and an entry
+      // that had never heard of the word at all would refuse them the same way. It refuses
+      // differently, and the difference is in the SENTENCE: this binary serves three programs, says
+      // so, and points at the other binary — where a word it does not know is very likely a
+      // deployment program somebody typed at the wrong one of the two.
+      //
+      // It refuses BEFORE opening anything, which is the second half of the difference. A word read
+      // as a program name would have sent this through the configuration and the catalogue first,
+      // and whatever went wrong in that installation would have been reported instead of the one
+      // thing that is actually wrong.
       final ProcessResult answered = await ansiwise(<String>[
         'install-a-service',
         '--listen',
@@ -390,8 +397,15 @@ Future<void> main() async {
         '-',
       ], stdinText: envelope);
 
-      expect(answered.exitCode, 65);
-      expect(answered.stderr, contains('no program is called'));
+      expect(answered.exitCode, 64);
+      expect(answered.stderr, contains('has no program called "install-a-service"'));
+      expect(
+        answered.stderr,
+        contains('ansiwise install-a-service'),
+        reason:
+            'somebody who typed a deployment program at the serving binary has to be told which of '
+            'the two carries it, or they read this as the program not existing anywhere',
+      );
     }, timeout: const Timeout(Duration(minutes: 2)));
   });
 }

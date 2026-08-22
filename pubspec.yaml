@@ -3,8 +3,18 @@ description: The main CLI executable for Ansiwise.
 publish_to: none
 version: 0.1.0
 
+# TWO PROGRAMS OUT OF ONE COMPOSITION ROOT. `ansiwise` executes a config flow against this machine;
+# `ansiwise-rest` serves the REST surface, over an address or over a session's own pipes, and places
+# itself as a service. They share `lib/installation.dart`, which stands up the configuration, the
+# active plugins, the machine and the catalogue for both — so a served run and a typed run on one
+# machine resolve ONE registry out of ONE plugin list, which is the drift a second binary would
+# otherwise introduce.
+#
+# The name on the left is what a person types; the file on the right is what compiles. They differ
+# because a Dart file name is lower_case_with_underscores and a command is not.
 executables:
   ansiwise: ansiwise
+  ansiwise-rest: ansiwise_rest
 
 environment:
   sdk: ^3.12.0

@@ -35,10 +35,19 @@ Future<void> main() async {
   final String programs = '$installation/$installationPrograms';
   final String configuration = '$installation/ansiwise.yaml';
 
-  Future<ProcessResult> ansiwise(List<String> arguments, {String? stdinText}) async {
+  // THE TWO BINARIES ARE BOTH STARTED HERE, and which one a case uses is the point of the case.
+  // `serve` is a program of the serving binary; a deployment program is a program of the other. What
+  // this suite holds is that the composition IN FRONT of both — the configuration, the plugins, the
+  // elevation route — behaves the same way for each, because they share it: a refusal that moved to
+  // one of them and not the other is exactly the defect this exists for.
+  Future<ProcessResult> started(
+    String entryPoint,
+    List<String> arguments, {
+    String? stdinText,
+  }) async {
     final Process child = await Process.start('dart', <String>[
       'run',
-      'bin/ansiwise.dart',
+      entryPoint,
       ...arguments,
       '--programs',
       programs,
@@ -56,9 +65,17 @@ Future<void> main() async {
     return ProcessResult(child.pid, await child.exitCode, out.first, out.last);
   }
 
+  /// The serving binary, which carries `serve` and the resident door.
+  Future<ProcessResult> ansiwiseRest(List<String> arguments, {String? stdinText}) =>
+      started('bin/ansiwise_rest.dart', arguments, stdinText: stdinText);
+
+  /// The deployment tool, which carries every program of the installation.
+  Future<ProcessResult> ansiwise(List<String> arguments, {String? stdinText}) =>
+      started('bin/ansiwise.dart', arguments, stdinText: stdinText);
+
   group('subcommands-start', () {
     test('serve starts under this installation\'s configuration', () async {
-      final ProcessResult answered = await ansiwise(<String>['serve']);
+      final ProcessResult answered = await ansiwiseRest(<String>['serve']);
 
       expect(
         answered.exitCode,
@@ -98,7 +115,7 @@ Future<void> main() async {
       // queued controller wins the race the real thing always loses.
       final Process session = await Process.start('dart', <String>[
         'run',
-        'bin/ansiwise.dart',
+        'bin/ansiwise_rest.dart',
         'serve',
         '--programs',
         programs,

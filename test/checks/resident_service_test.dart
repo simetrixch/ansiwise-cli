@@ -48,7 +48,7 @@ Future<void> main() async {
     test('binds the address, announces where it stands, and answers over it', () async {
       final Process service = await Process.start('dart', <String>[
         'run',
-        'bin/ansiwise.dart',
+        'bin/ansiwise_rest.dart',
         'service',
         '--listen',
         '127.0.0.1:0',
@@ -100,7 +100,7 @@ Future<void> main() async {
     test('an address in no accepted shape is refused at start, as usage', () async {
       final ProcessResult refused = await Process.run('dart', <String>[
         'run',
-        'bin/ansiwise.dart',
+        'bin/ansiwise_rest.dart',
         'service',
         '--listen',
         'nonsense',
@@ -129,7 +129,7 @@ Future<void> main() async {
         // session form still starts and returns rather than demanding an address it never needed.
         final Process session = await Process.start('dart', <String>[
           'run',
-          'bin/ansiwise.dart',
+          'bin/ansiwise_rest.dart',
           'serve',
           '--programs',
           programs,
@@ -150,7 +150,7 @@ Future<void> main() async {
       // while nothing decides who may reach it. It is refused as usage, before a bind.
       final Process service = await Process.start('dart', <String>[
         'run',
-        'bin/ansiwise.dart',
+        'bin/ansiwise_rest.dart',
         'service',
         '--listen',
         '127.0.0.1:0',
@@ -171,7 +171,7 @@ Future<void> main() async {
       // machine of credentials meets. The path they have to put back is the whole of the answer.
       final ProcessResult refused = await Process.run('dart', <String>[
         'run',
-        'bin/ansiwise.dart',
+        'bin/ansiwise_rest.dart',
         'service',
         '--listen',
         '127.0.0.1:0',
@@ -199,7 +199,7 @@ Future<void> main() async {
 
       final ProcessResult refused = await Process.run('dart', <String>[
         'run',
-        'bin/ansiwise.dart',
+        'bin/ansiwise_rest.dart',
         'service',
         '--listen',
         '127.0.0.1:0',
@@ -219,7 +219,7 @@ Future<void> main() async {
     test('a caller on the address without the token is refused, and told nothing else', () async {
       final Process service = await Process.start('dart', <String>[
         'run',
-        'bin/ansiwise.dart',
+        'bin/ansiwise_rest.dart',
         'service',
         '--listen',
         '127.0.0.1:0',
