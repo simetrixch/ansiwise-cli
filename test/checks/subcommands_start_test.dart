@@ -22,6 +22,14 @@ const String crlf = '\r\n';
 /// has a connection that ends immediately and returns; what matters is that it got that far rather
 /// than refusing at start-up. A refusal that belongs to a RUN belongs where a step is about to be
 /// taken, and the other half of this check is that a run with no password still refuses.
+///
+/// **THE THREE RUNS BELOW ARE THE WHOLE OF WHAT THAT REFUSAL IS ASKED ABOUT.** It answers whether
+/// root is reachable and never whether this run needs it — nothing on this side of the engine knows
+/// that, because elevation is chosen per call inside a step while it runs. So silence about a
+/// password is read as need, which is right for a run a person starts and impossible for one the
+/// machine starts after a reboot: told nothing, refused before its first step, and no caller there
+/// to be told. The three cases are a run that says nothing, one that says the silence is meant, and
+/// one that says both — and the second of them is the one this exists for.
 Future<void> main() async {
   // SKIPPED WHERE THERE IS NO INSTALLATION TO READ, printed rather than passed over: what is judged
   // here is this binary against an installation's configuration, and a clone of this repository
@@ -58,11 +66,14 @@ Future<void> main() async {
       child.stdin.write(stdinText);
     }
     await child.stdin.close();
-    final List<String> out = <String>[
-      await utf8.decodeStream(child.stdout),
-      await utf8.decodeStream(child.stderr),
-    ];
-    return ProcessResult(child.pid, await child.exitCode, out.first, out.last);
+    // BOTH STREAMS ARE DRAINED AT ONCE, and this is the same deadlock the recording shell writes
+    // about. Waiting for one to end before reading the other leaves the second pipe unread: a child
+    // that fills its buffer blocks on its next write, never exits, and the wait never returns. It
+    // held while every case here answered in one or two lines, and stopped holding at the first one
+    // that names four missing answers on standard error.
+    final Future<String> out = utf8.decodeStream(child.stdout);
+    final Future<String> err = utf8.decodeStream(child.stderr);
+    return ProcessResult(child.pid, await child.exitCode, await out, await err);
   }
 
   /// The serving binary, which carries `serve` and the resident door.
@@ -106,6 +117,51 @@ Future<void> main() async {
 
       expect(answered.exitCode, 78);
       expect(answered.stderr, contains('raises a command to root'));
+    }, timeout: const Timeout(Duration(minutes: 2)));
+
+    test('a run that says it hands over no password is not asked for one', () async {
+      // THE CASE THE SECOND CONFIGURATION FILE WAS WRITTEN FOR. Same installation, same program,
+      // same absence of a password — and the run walks past the elevation refusal to the next thing
+      // that can refuse it, which is the answers it was not given. Nothing was turned off: no
+      // command of it may be raised to root, and the shell refuses the first one that tries.
+      final ProcessResult answered = await ansiwise(<String>[
+        'deploy-host',
+        '--mode',
+        'test',
+        '--without-elevation-password',
+        '--answers',
+        '-',
+      ], stdinText: '{"answers":{}}');
+
+      expect(
+        answered.exitCode,
+        65,
+        reason:
+            'the run was to reach the answers it is missing and did not:\n${answered.stderr}\n'
+            '78 is the elevation refusal, still asked of a caller that said it hands none over',
+      );
+    }, timeout: const Timeout(Duration(minutes: 2)));
+
+    test('THE INNOCENT NEIGHBOUR: a run that says both is refused, and starts nothing', () async {
+      // A caller saying it hands none over WHILE handing one over says two opposite things about
+      // one run. Choosing either would act on a decision nobody made, so neither is taken.
+      final ProcessResult answered = await ansiwise(<String>[
+        'deploy-host',
+        '--mode',
+        'test',
+        '--without-elevation-password',
+        '--answers',
+        '-',
+      ], stdinText: '{"answers":{},"elevation_password":"what raises a command"}');
+
+      expect(
+        answered.exitCode,
+        78,
+        reason:
+            'the two together were resolved instead of refused:\n${answered.stderr}\n'
+            'nothing else answers 78 here — a password arrived, so the refusal for a missing one '
+            'cannot be what spoke',
+      );
     }, timeout: const Timeout(Duration(minutes: 2)));
     test('serve ANSWERS over its own stdio, which is the door every first installation uses', () async {
       // Starting is not answering, and for a while it was only starting. The server socket handed

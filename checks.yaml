@@ -92,10 +92,13 @@ release: test/checks/release_test.dart
 # under the same name. This is the tree that reaches every package of the family at once.
 dependency-pins: test/checks/dependency_pins_test.dart
 
-# Every subcommand that executes no step starts under the installation's own configuration. `serve`
-# comes through the same entry as a run and can be handed no password — its standard input IS the
-# connection — so a refusal placed at that entry takes the whole REST surface away from any
-# installation whose elevation comes from the caller. It did, and nothing noticed.
+# Every subcommand that executes no step starts under the installation's own configuration, and the
+# elevation refusal is asked of a run about the one thing it can answer. `serve` comes through the
+# same entry as a run and can be handed no password — its standard input IS the connection — so a
+# refusal placed at that entry takes the whole REST surface away from any installation whose
+# elevation comes from the caller. It did, and nothing noticed. The three runs beside it hold where
+# that refusal stands: told nothing it refuses, told the silence is meant it goes ahead holding no
+# password, told both it refuses again.
 subcommands-start: test/checks/subcommands_start_test.dart
 
 # The resident door of the surface as a PROGRAM of this binary: `service --listen <address>

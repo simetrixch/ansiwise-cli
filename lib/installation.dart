@@ -91,8 +91,12 @@ final class Installation {
 
   /// WHICH route the configuration named, kept beside the password itself.
   ///
-  /// The two are not one question: a run may hold no password because none was handed over, and
-  /// only the route says whether that is a refusal or an installation whose steps never need root.
+  /// The two are not one question: a run may hold no password because none was handed over, and the
+  /// route is what says whether anything was ever going to arrive.
+  ///
+  /// What neither of them says is whether this run NEEDS root. That is a property of the steps it
+  /// holds, and nothing on this side of the engine carries it — elevation is chosen per call, inside
+  /// a step, while it runs.
   final ElevationSource? elevationSource;
 
   /// What the caller supplied for this run.
@@ -420,6 +424,12 @@ Future<String> commitOf(Machine machine) async {
 /// One wording for both callers. An installation that named the caller's route and was handed
 /// nothing is the same state whether a run or an installation of the service met it, and two
 /// wordings of it are two things to keep in step.
+///
+/// **IT ANSWERS WHETHER ROOT IS REACHABLE, NEVER WHETHER IT IS NEEDED**, and the two callers differ
+/// in exactly that. `install-service` knows it needs root — every file it places belongs to root —
+/// so this answer is its refusal on its own. A RUN does not know: elevation is chosen per call
+/// inside a step, and neither the registry entry nor the row says it, so a run treats this as need
+/// unless whoever started it says the silence was meant.
 String? elevationRefusal(ElevationSource? source, Elevation elevation) {
   if (source is! ElevationFromCaller || elevation.password != null) {
     return null;

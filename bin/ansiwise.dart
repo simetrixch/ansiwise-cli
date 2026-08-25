@@ -39,6 +39,18 @@ Future<void> main(List<String> argv) async {
       'no-unwind',
       help: 'disable unwinding steps on failure so evidence is preserved for debugging',
     )
+    ..addFlag(
+      'without-elevation-password',
+      negatable: false,
+      help:
+          'this run hands over no password that raises a command to root, and that is meant. An '
+          'installation whose configuration takes the password from the caller otherwise refuses '
+          'every run that arrives without one, which is right for a run a person or the manager '
+          'starts and impossible for one the machine starts after a reboot, where there is no '
+          'caller to hand one over. It turns nothing off: no command of this run may be raised to '
+          'root either way, and a step that has to run as root stops the run at its own command '
+          'instead of before the first one',
+    )
     ..addFlag('help', abbr: 'h', negatable: false);
 
   final ArgResults options;
@@ -100,6 +112,11 @@ Future<void> main(List<String> argv) async {
       // whichever route it came by, and so a run can refuse when the route named one and none came.
       elevation: installation.elevation,
       elevationSource: installation.elevationSource,
+      // Whether the caller says the absence of a password is what it meant, rather than something
+      // it forgot. Read here and not in the composition root because the serving binary shares that
+      // root and carries no such option: `install-service` writes files that belong to root on
+      // every installation there is, so nothing may excuse it a password.
+      withoutElevationPassword: options.flag('without-elevation-password'),
       // Handed on so the answer conditions can be measured before the answers are checked.
       registry: installation.registry,
       requireDryRun: installation.requireDryRun,
@@ -121,6 +138,7 @@ Future<int> _runProgram({
   required CallerInputs inputs,
   required Elevation elevation,
   required ElevationSource? elevationSource,
+  required bool withoutElevationPassword,
   required Registry registry,
   required String? unwindDisabledBy,
 }) async {
@@ -136,9 +154,39 @@ Future<int> _runProgram({
   // Where the caller's route is refused, and it is refused HERE because here is where a step is
   // about to be taken. The process entry cannot refuse it: `serve` comes through the same entry and
   // holds no password by design, since it executes nothing itself.
-  if (elevationRefusal(elevationSource, elevation) case final String refused) {
-    stderr.writeln(refused);
+  //
+  // A CALLER THAT SAYS SO IS NOT ASKED, and what that costs was measured before it was written.
+  // The question this refusal would like to ask is whether any step of THIS run raises a command to
+  // root, and nothing here can answer it. Elevation is a property of the single call — the
+  // `elevated` flag on a command and on every file operation — chosen inside a step while it runs.
+  // What a resolved program carries is each step's registry entry and each row's arguments, and
+  // neither states it: most steps fix it in their own code, so an answer read off the rows would
+  // say "nothing here needs root" for a program full of steps that do. So the refusal asks the one
+  // question it can answer — whether a password is here at all — and reads silence as need.
+  //
+  // Reading silence as need is right for a run a person or the manager starts, and impossible for
+  // one the machine starts: a unit that runs a program after a reboot has no caller, and the other
+  // route the configuration offers is a password in a file, which is the one credential this
+  // platform stopped keeping at rest. So the caller says the silence is meant, and the run then
+  // holds no password at all — what a step that has to run as root meets is the shell's own
+  // refusal, raised before that command starts and naming it and both routes.
+  if (withoutElevationPassword &&
+      elevationSource is ElevationFromCaller &&
+      elevation.password != null) {
+    // Refused rather than resolved either way. The two say opposite things about the same run, and
+    // a code that picked one would act on a decision nobody made.
+    stderr.writeln(
+      'this run was started with --without-elevation-password, and an '
+      '"${CallerInputs.elevationPasswordField}" arrived beside the answers',
+    );
+    stderr.writeln('drop the option, or stop sending the password');
     return 78;
+  }
+  if (!withoutElevationPassword) {
+    if (elevationRefusal(elevationSource, elevation) case final String refused) {
+      stderr.writeln(refused);
+      return 78;
+    }
   }
 
   final Mode mode = _modeNamed(options.option('mode'));
@@ -189,6 +237,17 @@ Future<int> _runProgram({
 
   final String commit = await commitOf(machine);
   final String fingerprint = fingerprintOf(program: resolved, commit: commit, answers: answers);
+
+  // What declining the refusal above costs this run, said before its first step. The option says
+  // only that no password is being handed over, so it changes nothing on an installation that keeps
+  // one in a file — this is written where nothing can in fact be raised to root, which is the state
+  // an operator reading a failed boot has to see in front of the failure rather than after it.
+  if (withoutElevationPassword && elevation.password == null) {
+    stdout.writeln(
+      'this run holds no password that raises a command to root: a step that has to run as root '
+      'stops it at that command',
+    );
+  }
 
   // Said BEFORE the run, and by the one implementation. Every step declares whether it can be taken
   // back, so where a run stops being reversible is a fact this program can state rather than a
