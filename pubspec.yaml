@@ -23,7 +23,7 @@ dependencies:
   ansiwise_core:
     git:
       url: https://github.com/simetrixch/ansiwise-core.git
-      ref: 0.1.0-alpha-20260824130508
+      ref: 0.1.0-alpha-20260825002440
   # For the annotations the REST message types under lib/src/rest carry, so an immutable one is
   # checked as immutable.
   meta: ^1.15.0
@@ -95,7 +95,7 @@ dev_dependencies:
   ansiwise_checks:
     git:
       url: https://github.com/simetrixch/ansiwise-checks.git
-      ref: 0.1.0-alpha-20260824130732
+      ref: 0.1.0-alpha-20260825074134
       path: registry
   # The tree half by name as well, because this package imports it directly for its own
   # tree-analysis check. Reached transitively through the registry half it would resolve and still
@@ -103,5 +103,5 @@ dev_dependencies:
   ansiwise_checks_tree:
     git:
       url: https://github.com/simetrixch/ansiwise-checks.git
-      ref: 0.1.0-alpha-20260824130732
+      ref: 0.1.0-alpha-20260825074134
       path: tree
