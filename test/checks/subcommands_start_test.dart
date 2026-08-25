@@ -30,6 +30,9 @@ const String crlf = '\r\n';
 /// machine starts after a reboot: told nothing, refused before its first step, and no caller there
 /// to be told. The three cases are a run that says nothing, one that says the silence is meant, and
 /// one that says both — and the second of them is the one this exists for.
+///
+/// What a run holding no password may then be, and what it is refused for, is a different question
+/// and is measured elsewhere: test/checks/elevation_without_password_test.dart.
 Future<void> main() async {
   // SKIPPED WHERE THERE IS NO INSTALLATION TO READ, printed rather than passed over: what is judged
   // here is this binary against an installation's configuration, and a clone of this repository
@@ -120,12 +123,18 @@ Future<void> main() async {
     }, timeout: const Timeout(Duration(minutes: 2)));
 
     test('a run that says it hands over no password is not asked for one', () async {
-      // THE CASE THE SECOND CONFIGURATION FILE WAS WRITTEN FOR. Same installation, same program,
-      // same absence of a password — and the run walks past the elevation refusal to the next thing
-      // that can refuse it, which is the answers it was not given. Nothing was turned off: no
-      // command of it may be raised to root, and the shell refuses the first one that tries.
+      // THE CASE THE SECOND CONFIGURATION FILE WAS WRITTEN FOR. Same installation, same absence of
+      // a password — and the run walks past the elevation refusal to the next thing that can refuse
+      // it, which is the answers it was not given.
+      //
+      // A PROGRAM WHOSE EVERY ROW SAYS `on_failure: exit`, because that is what the option admits:
+      // a row saying `continue` would carry the run past the refusal a command that has to run as
+      // root meets, and such a program is refused before its first step instead. Which programs of
+      // an installation are of which shape is measured in
+      // test/checks/elevation_without_password_test.dart, against rows that check plants rather
+      // than against whichever rows a catalogue happens to carry today.
       final ProcessResult answered = await ansiwise(<String>[
-        'deploy-host',
+        'disable-password-login',
         '--mode',
         'test',
         '--without-elevation-password',
@@ -146,7 +155,7 @@ Future<void> main() async {
       // A caller saying it hands none over WHILE handing one over says two opposite things about
       // one run. Choosing either would act on a decision nobody made, so neither is taken.
       final ProcessResult answered = await ansiwise(<String>[
-        'deploy-host',
+        'disable-password-login',
         '--mode',
         'test',
         '--without-elevation-password',

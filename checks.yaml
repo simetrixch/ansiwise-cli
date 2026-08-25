@@ -101,6 +101,15 @@ dependency-pins: test/checks/dependency_pins_test.dart
 # password, told both it refuses again.
 subcommands-start: test/checks/subcommands_start_test.dart
 
+# What a run that says it hands over no password may promise, held against what the engine does with
+# a command that has to run as root. The shell refuses such a command before it starts one, and that
+# refusal is an exception a step turns into the verdict of the row it was running — so a row saying
+# `on_failure: continue` converts a condition that belongs to the whole run into a note the run walks
+# past, and goes on to change the machine. The premise is measured here against the real shell and
+# the real runner, both failure policies are asked, and the command line's refusal is planted against
+# programs this check writes rather than against whichever rows a catalogue happens to carry.
+elevation-without-password: test/checks/elevation_without_password_test.dart
+
 # The resident door of the surface as a PROGRAM of this binary: `service --listen <address>
 # --service-token-file <path>` binds, announces the port it really stands on, answers the same
 # catalogue over that address, and refuses at start when it was told nowhere to stand, an address in

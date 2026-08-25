@@ -47,9 +47,12 @@ Future<void> main(List<String> argv) async {
           'installation whose configuration takes the password from the caller otherwise refuses '
           'every run that arrives without one, which is right for a run a person or the manager '
           'starts and impossible for one the machine starts after a reboot, where there is no '
-          'caller to hand one over. It turns nothing off: no command of this run may be raised to '
-          'root either way, and a step that has to run as root stops the run at its own command '
-          'instead of before the first one',
+          'caller to hand one over. It turns nothing off: the run holds no password, so a step '
+          'that has to run as root is refused at its own command and the run stops there — and a '
+          'program with a row that says "on_failure: continue" is refused before its first step, '
+          'naming those rows, because such a row would carry the run past that refusal. On an '
+          'installation whose password comes from a file it changes nothing at all, and the run '
+          'says so',
     )
     ..addFlag('help', abbr: 'h', negatable: false);
 
@@ -155,7 +158,9 @@ Future<int> _runProgram({
   // about to be taken. The process entry cannot refuse it: `serve` comes through the same entry and
   // holds no password by design, since it executes nothing itself.
   //
-  // A CALLER THAT SAYS SO IS NOT ASKED, and what that costs was measured before it was written.
+  // A CALLER THAT SAYS SO IS NOT ASKED, and what that costs is asked of the program instead, three
+  // refusals down.
+  //
   // The question this refusal would like to ask is whether any step of THIS run raises a command to
   // root, and nothing here can answer it. Elevation is a property of the single call — the
   // `elevated` flag on a command and on every file operation — chosen inside a step while it runs.
@@ -185,6 +190,44 @@ Future<int> _runProgram({
   if (!withoutElevationPassword) {
     if (elevationRefusal(elevationSource, elevation) case final String refused) {
       stderr.writeln(refused);
+      return 78;
+    }
+  }
+
+  // WHAT DECLINING THE REFUSAL ABOVE COSTS, ASKED OF THE PROGRAM AND NOT ASSUMED. A run holding no
+  // password meets the shell's own refusal at the first command that has to be raised to root, and
+  // what happens to the run then is that row's `on_failure` and nothing else: the refusal is an
+  // exception, a step turns every exception it catches into that row's verdict, and `continue` is
+  // the program saying in advance that a failure of this row is to be walked past. So on a program
+  // holding such a row the run-wide condition — this run holds NO password at all — is converted
+  // into a per-row note, and the run carries on to the rows after it.
+  //
+  // Measured before this was written, on a program of two rows that both read a path belonging to
+  // root, both saying `on_failure: continue`: started with the option, the run walked both, changed
+  // nothing only because those two rows were the whole program, and closed `exit 2  2 proven`.
+  //
+  // A ROW'S POLICY IS ABOUT THAT ROW'S OWN FAILURE and was never meant to answer a question about
+  // the whole run, so it is not made to. The run is refused here instead, where every row is known
+  // and nothing has been touched — which is also where the operator can act on it.
+  if (withoutElevationPassword && elevation.password == null) {
+    final List<String> carryOn = _rowsCarryingTheRunPastTheirOwnFailure(resolved);
+    if (carryOn.isNotEmpty) {
+      stderr.writeln(
+        'this run was started with --without-elevation-password, so it holds no password at all — '
+        'and "$program" says the run carries on when these rows fail:',
+      );
+      for (final String row in carryOn) {
+        stderr.writeln('  $row');
+      }
+      stderr.writeln(
+        'a step that has to run as root is refused for want of that password, and '
+        '"on_failure: continue" turns the refusal into an issue the run walks past, so this run '
+        'would go on to the rows after it and change this machine',
+      );
+      stderr.writeln(
+        'send the password beside the answers, or run a program whose every row says '
+        '"on_failure: exit"',
+      );
       return 78;
     }
   }
@@ -238,14 +281,19 @@ Future<int> _runProgram({
   final String commit = await commitOf(machine);
   final String fingerprint = fingerprintOf(program: resolved, commit: commit, answers: answers);
 
-  // What declining the refusal above costs this run, said before its first step. The option says
-  // only that no password is being handed over, so it changes nothing on an installation that keeps
-  // one in a file — this is written where nothing can in fact be raised to root, which is the state
-  // an operator reading a failed boot has to see in front of the failure rather than after it.
-  if (withoutElevationPassword && elevation.password == null) {
+  // WHICH OF THE TWO STATES THE OPTION LEFT THIS RUN IN, said before its first step. The option
+  // says only that no password is being handed over; whether root is reachable at all is the
+  // installation's own answer, and on one that keeps a password in a file the option changes
+  // nothing whatever. Both readings are written out, because an operator reading a failed boot has
+  // to see which of them they are in, in front of the failure rather than after it — and the second
+  // was silence until it was measured.
+  if (withoutElevationPassword) {
     stdout.writeln(
-      'this run holds no password that raises a command to root: a step that has to run as root '
-      'stops it at that command',
+      elevation.password == null
+          ? 'this run holds no password that raises a command to root, and every row of $program '
+                'ends the run when it fails: a step that has to run as root stops it at that command'
+          : 'this run was started with --without-elevation-password, and this installation reads '
+                'that password from a file: a command of this run can still be raised to root',
     );
   }
 
@@ -357,6 +405,16 @@ Future<int> _runProgram({
   }
   return record.exitCode ?? 1;
 }
+
+/// The rows of [resolved] whose `on_failure` says the run carries on when they fail.
+///
+/// Named the way a plan and a refusal already name a row — the step, and its place counted from
+/// one, because somebody reading the program file counts its first row as the first one.
+List<String> _rowsCarryingTheRunPastTheirOwnFailure(ResolvedProgram resolved) => <String>[
+  for (int at = 0; at < resolved.steps.length; at++)
+    if (resolved.steps[at].entry.onFailure == OnFailure.continueRun)
+      'step ${at + 1} ${resolved.steps[at].entry.step}',
+];
 
 /// The proofs the run was started without, as the command line names them.
 ///
