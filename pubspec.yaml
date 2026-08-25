@@ -56,7 +56,7 @@ dependencies:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
       path: ansiwise-authentik
-      ref: 0.3.0-alpha-20260825130257
+      ref: 0.3.1-alpha-20260825164728
   ansiwise_git:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
