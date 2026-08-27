@@ -145,6 +145,7 @@ Future<void> main(List<String> argv) async {
         catalogue: installation.catalogue,
         store: installation.store,
         requireDryRun: installation.requireDryRun,
+        placement: placementFrom(options),
       ),
       incoming: stdin,
       outgoing: stdout,
@@ -188,6 +189,7 @@ DeploymentApi _surface({
   required Catalogue catalogue,
   required FileRunStore store,
   required bool requireDryRun,
+  required List<String> placement,
 }) => DeploymentApi(
   programs: ProgramsEndpoint(catalogue),
   runs: RunsEndpoint(
@@ -196,6 +198,13 @@ DeploymentApi _surface({
       executable: deploymentToolBesideThis(),
       workingDirectory: Directory.current.path,
       newRunId: () => newRunId(machine),
+      // WHERE THIS PROCESS STANDS, HANDED ON. Every child resolves its programs, its configuration
+      // and its record directory itself, and each of those has a default relative to the working
+      // directory — so a surface TOLD any of them and a child given only the directory stand in two
+      // different places. Measured: `cd <catalogue> && ansiwise-rest serve --programs
+      // <catalogue>/ansiwise/programs` served the catalogue and every run it accepted exited 66
+      // with `there are no programs at "programs"` before writing a header.
+      placement: placement,
     ),
     catalogue: catalogue,
     gate: Gate(store, requireDryRun: requireDryRun),
@@ -235,7 +244,13 @@ Future<void> _residentService({
 
   try {
     await service.serve(
-      _surface(machine: machine, catalogue: catalogue, store: store, requireDryRun: requireDryRun),
+      _surface(
+        machine: machine,
+        catalogue: catalogue,
+        store: store,
+        requireDryRun: requireDryRun,
+        placement: placementFrom(options),
+      ),
       // Written once the bind stands, because that is when the port is a fact: an address asked for
       // as port 0 is answered with the port the operating system chose, and a service's journal
       // says where the surface actually is rather than where it was asked to be.

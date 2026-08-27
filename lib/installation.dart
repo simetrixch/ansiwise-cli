@@ -38,6 +38,21 @@ const String runsOption = 'runs';
 /// Where the envelope a run is told with is read from.
 const String answersOption = 'answers';
 
+/// The options that put a detached run where THIS process stands, as the words they arrived as.
+///
+/// THREE AND NOT ALL OF THEM. What a child must be told is what it cannot work out for itself and
+/// would otherwise DEFAULT: where the programs are, which file names the active plugins, and where
+/// records are kept. Everything else on this command line is either about serving — an address, a
+/// token file — or about one run, and one run is told over its own envelope.
+///
+/// A value this process was NOT given is not passed on. Handing the default down explicitly would
+/// read as a decision somebody made, and it would freeze a default that is the child's to resolve.
+List<String> placementFrom(ArgResults options) => <String>[
+  for (final String name in <String>[programsOption, configurationOption, runsOption])
+    if (options.wasParsed(name))
+      if (options.option(name) case final String value) ...<String>['--$name', value],
+];
+
 /// The quietest level a run writes.
 const String logLevelOption = 'log-level';
 
