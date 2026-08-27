@@ -145,13 +145,17 @@ Future<int> _runProgram({
   required Registry registry,
   required String? unwindDisabledBy,
 }) async {
+  // The same refusal the composition used, rebuilt from the same two options: everything that can
+  // still end this run BEFORE its first step goes through it, so a caller who cannot see standard
+  // error is told why anyway.
+  final StartupReason reason = startupReasonFrom(options);
   final ResolvedProgram? resolved = catalogue.byName(program);
   if (resolved == null) {
-    stderr.writeln('no program is called "$program"');
-    stderr.writeln(
+    reason.refuse(
+      'no program is called "$program"\n'
       'there is: ${catalogue.programs.map((ResolvedProgram p) => p.declared.name).join(', ')}',
+      65,
     );
-    return 65;
   }
 
   // Where the caller's route is refused, and it is refused HERE because here is where a step is
@@ -184,13 +188,11 @@ Future<int> _runProgram({
       'this run was started with --without-elevation-password, and an '
       '"${CallerInputs.elevationPasswordField}" arrived beside the answers',
     );
-    stderr.writeln('drop the option, or stop sending the password');
-    return 78;
+    reason.refuse('drop the option, or stop sending the password', 78);
   }
   if (!withoutElevationPassword) {
     if (elevationRefusal(elevationSource, elevation) case final String refused) {
-      stderr.writeln(refused);
-      return 78;
+      reason.refuse(refused, 78);
     }
   }
 
@@ -216,19 +218,17 @@ Future<int> _runProgram({
         'this run was started with --without-elevation-password, so it holds no password at all — '
         'and "$program" says the run carries on when these rows fail:',
       );
-      for (final String row in carryOn) {
-        stderr.writeln('  $row');
-      }
-      stderr.writeln(
-        'a step that has to run as root is refused for want of that password, and '
-        '"on_failure: continue" turns the refusal into an issue the run walks past, so this run '
-        'would go on to the rows after it and change this machine',
+      reason.refuse(
+        <String>[
+          for (final String row in carryOn) '  $row',
+          'a step that has to run as root is refused for want of that password, and '
+              '"on_failure: continue" turns the refusal into an issue the run walks past, so this '
+              'run would go on to the rows after it and change this machine',
+          'send the password beside the answers, or run a program whose every row says '
+              '"on_failure: exit"',
+        ].join('\n'),
+        78,
       );
-      stderr.writeln(
-        'send the password beside the answers, or run a program whose every row says '
-        '"on_failure: exit"',
-      );
-      return 78;
     }
   }
 
@@ -263,19 +263,15 @@ Future<int> _runProgram({
     // Its own exit, because it is a configuration problem and not an answer somebody mistyped: a
     // caller sending the password under the name the run fills itself, or a program declaring that
     // name on an installation whose password comes from a file.
-    stderr.writeln(refused.message);
-    return 78;
+    reason.refuse(refused.message, 78);
   } on ConditionUnanswerable catch (refused) {
     // Its own exit and its own sentence: the operator has to be sent to the condition that could not
     // be answered, not to the answer it was deciding about.
-    stderr.writeln(refused.because);
-    return 65;
+    reason.refuse(refused.because, 65);
   } on AnswersRejected catch (refused) {
-    stderr.writeln(refused.message);
-    return 65;
+    reason.refuse(refused.message, 65);
   } on FormatException catch (unreadable) {
-    stderr.writeln('--answers: ${unreadable.message}');
-    return 65;
+    reason.refuse('--answers: ${unreadable.message}', 65);
   }
 
   final String commit = await commitOf(machine);
@@ -312,8 +308,7 @@ Future<int> _runProgram({
       requireDryRun: requireDryRun,
     ).admit(mode: mode, program: program, fingerprint: fingerprint);
   } on GateNotMet catch (refusal) {
-    stderr.writeln(refusal.message);
-    return 69;
+    reason.refuse(refusal.message, 69);
   }
 
   final String? chosen = options.option('run');
@@ -328,13 +323,14 @@ Future<int> _runProgram({
   if (continues != null && continues.isNotEmpty) {
     final RunRecord? earlier = await store.read(RunId(continues));
     if (earlier == null) {
-      stderr.writeln('there is no run called "$continues" to continue');
-      return 65;
+      reason.refuse('there is no run called "$continues" to continue', 65);
     }
     if (earlier.fingerprint != fingerprint) {
-      stderr.writeln('run "$continues" was a different input, so this would not be continuing it');
-      stderr.writeln('start a fresh run instead, or say why the input changed');
-      return 65;
+      reason.refuse(
+        'run "$continues" was a different input, so this would not be continuing it\n'
+        'start a fresh run instead, or say why the input changed',
+        65,
+      );
     }
     resumes = earlier.id;
   }

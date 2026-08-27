@@ -35,6 +35,9 @@ const String programsOption = 'programs';
 /// Where run records are kept.
 const String runsOption = 'runs';
 
+/// What this run is called, where something else chose the name.
+const String runIdOption = 'run';
+
 /// Where the envelope a run is told with is read from.
 const String answersOption = 'answers';
 
@@ -195,6 +198,10 @@ Future<Installation> openInstallation({
   required PluginSet plugins,
   String? unwindDisabledBy,
 }) async {
+  // BUILT FIRST, before anything can refuse. Every exit below goes through it, so that a run whose
+  // standard error nobody reads still leaves its reason where a caller can find it.
+  final StartupReason reason = startupReasonFrom(options);
+
   // The file system is built first and on its own, because the configuration has to be read before
   // the rest of the machine can be built: what a command that has to run as root is elevated with
   // stands in that file, and a shell built before it was read would be a shell reaching for a path
@@ -261,16 +268,13 @@ Future<Installation> openInstallation({
       );
     }
   } on FormatException catch (unreadable) {
-    stderr.writeln('--$answersOption: ${unreadable.message}');
-    exit(65);
+    reason.refuse('--$answersOption: ${unreadable.message}', 65);
   } on PluginRejected catch (refused) {
-    stderr.writeln(refused.message);
-    exit(78);
+    reason.refuse(refused.message, 78);
   } on ElevationUnavailable catch (refused) {
     // Its own exit, and its own sentence. The operator has to be sent to the password file rather
     // than to the configuration that names it, and both are configuration problems.
-    stderr.writeln(refused.message);
-    exit(78);
+    reason.refuse(refused.message, 78);
   }
 
   // Not const: the entropy port holds the platform's cryptographic generator, which is created
@@ -296,9 +300,11 @@ Future<Installation> openInstallation({
     // Named rather than thrown. This is what an operator meets when they run the binary from
     // somewhere other than the installation it belongs to, and a stack trace tells them nothing
     // about which of the two is wrong.
-    stderr.writeln('there are no programs at "$programs"');
-    stderr.writeln('run this where the installation is, or say --$programsOption <directory>');
-    exit(66);
+    reason.refuse(
+      'there are no programs at "$programs"\n'
+      'run this where the installation is, or say --$programsOption <directory>',
+      66,
+    );
   }
 
   final Catalogue catalogue;
@@ -311,8 +317,7 @@ Future<Installation> openInstallation({
   } on ProgramInvalid catch (invalid) {
     // The first gate, before anything is looked at or touched. Every problem at once, so an
     // operator fixing a program file learns everything in one run.
-    stderr.writeln(invalid.toString());
-    exit(65);
+    reason.refuse(invalid.toString(), 65);
   }
 
   final RunDirectory directory = RunDirectory(
@@ -421,6 +426,70 @@ RunId newRunId(Machine machine) {
   // drives: two runs asked for in the same second came back with ONE id and wrote over each other's
   // record. Four random bytes are what make the id the run's own rather than the second's.
   return RunId('${stamp.substring(0, 15)}Z-$pid-${machine.entropy.hex(4)}');
+}
+
+/// The refusal this command line's run records under, read off the two options that decide it.
+///
+/// `--runs` says WHERE records are kept and `--run` says WHICH run this is. Both are read here and
+/// nowhere else, so the file a refusal writes and the directory a record is written into can never
+/// be two different places.
+StartupReason startupReasonFrom(ArgResults options) {
+  // ASKED WHETHER THE OPTION EXISTS AT ALL, because the serving binary comes through this same
+  // composition and does not carry one: `ansiwise-rest` never IS a run, it starts them. Reading an
+  // option a parser does not declare is an ArgumentError, and it would turn every refusal this
+  // exists to record into an unhandled exception — the thing it exists to prevent, from itself.
+  final String? named = options.options.contains(runIdOption) ? options.option(runIdOption) : null;
+  return StartupReason(
+    directory: RunDirectory(options.option(runsOption) ?? RunDirectory.defaultRoot),
+    id: named == null || named.isEmpty ? null : RunId(named),
+  );
+}
+
+/// How a run that never started says why, to the one reader who cannot see its standard error.
+///
+/// **EVERY REFUSAL BEFORE THE FIRST STEP GOES THROUGH HERE, and a check holds that.** A run started
+/// at a command line writes its refusal to standard error and a person reads it. A run started over
+/// `ansiwise-rest serve` is a DETACHED CHILD whose standard error is a pipe nobody reads — the
+/// launcher writes its standard input and forgets it — so the same sentence reaches nobody and the
+/// caller is left with "accepted but never wrote its record". Three separate defects on one
+/// installation were diagnosed only by running the child BY HAND with the same envelope, because the
+/// machine kept its own words to itself.
+///
+/// **IT STILL WRITES TO STANDARD ERROR FIRST.** The file is for the reader who has no terminal; it
+/// does not replace the one who has.
+///
+/// **A RUN WITH NO IDENTIFIER WRITES NO FILE, and that is the whole of the condition.** An
+/// identifier is what a caller was handed and what it comes back for, so a run that has one was
+/// started by something that is not watching. A run without one is a person at a terminal, whose
+/// standard error is already where they are looking.
+///
+/// **A FILE THAT CANNOT BE WRITTEN CHANGES NOTHING.** The run root may not exist and may not be
+/// writable — that is itself one of the states this exists to explain — so a failure to record the
+/// reason must never replace the reason.
+final class StartupReason {
+  /// Records under [directory], for the run [id] where a caller named one.
+  const StartupReason({required this.directory, required this.id});
+
+  /// Where runs are kept, as this run was told.
+  final RunDirectory directory;
+
+  /// What this run is called, or null where nobody named it.
+  final RunId? id;
+
+  /// Says [message], and ends this process with [code].
+  Never refuse(String message, int code) {
+    stderr.writeln(message);
+    if (id case final RunId named) {
+      try {
+        File(directory.startupLog(named))
+          ..createSync(recursive: true)
+          ..writeAsStringSync('$message\n');
+      } on FileSystemException {
+        // Deliberately silent: see A FILE THAT CANNOT BE WRITTEN above.
+      }
+    }
+    exit(code);
+  }
 }
 
 /// The commit this installation's branch is on, which is part of what makes an input the same.

@@ -101,6 +101,16 @@ dependency-pins: test/checks/dependency_pins_test.dart
 # password, told both it refuses again.
 subcommands-start: test/checks/subcommands_start_test.dart
 
+# Where a run that never started says why. Every refusal this binary makes before it writes a header
+# used to go to standard error and nowhere else — and a run over `ansiwise-rest serve` is a detached
+# child whose standard error is a pipe nobody reads, so the caller was left with an absence:
+# "accepted but never wrote its record". Three separate defects on one installation were diagnosed
+# only by running the child by hand with the same envelope. This holds both halves: that a run given
+# an identifier records its reason beside the records and a run given none does not, and that nothing
+# else in the binary says something and then ends the run — because a refusal that skips the
+# recording is a refusal nobody can read, and that is how sixteen of them came to exist.
+startup-reason: test/checks/startup_reason_test.dart
+
 # What a run that says it hands over no password may promise, held against what the engine does with
 # a command that has to run as root. The shell refuses such a command before it starts one, and that
 # refusal is an exception a step turns into the verdict of the row it was running — so a row saying
