@@ -117,8 +117,22 @@ final class RunsEndpoint {
     final Map<String, Object?> answers = inputs.filledFor(program.declared.answers);
     final String? password = inputs.elevationPassword;
 
+    // WHAT VALIDATION ANSWERS IS WHAT IS FINGERPRINTED, and taking its return value is the whole of
+    // that. It does not only judge: it fills every answer with a default, fills every answer that
+    // FALLS BACK to another from the one it names, and works out every derived answer. That filled
+    // shape is what the run will carry — `ansiwise.dart` fingerprints exactly the value this call
+    // returns — and fingerprinting the caller's raw map instead means this door and the run compute
+    // two different numbers for one job.
+    //
+    // MEASURED, and it is what a machine looks like: `deploy-cluster` declares `books_fqdn` with a
+    // `default_from`, the manager's master arm sends neither, and the run filled it from `fqdn`
+    // while this door wrote it as absent — door ca14d4f14aea…, machine 4bfda385e985…. The dry run
+    // was green and the real run was refused for ever, because the gate looks a dry up by the
+    // number this door computes and no run had ever recorded it. A retry cannot clear that: the
+    // next dry records the same number this door still does not ask for.
+    final Arguments answered;
     try {
-      program.declared.answers.validate(answers, program: programName);
+      answered = program.declared.answers.validate(answers, program: programName);
     } on AnswersRejected catch (refused) {
       return Refused.badRequest(refused.message);
     }
@@ -126,10 +140,7 @@ final class RunsEndpoint {
     final String fingerprint = fingerprintOf(
       program: program,
       commit: await commit(),
-      answers: Arguments(<String, Object>{
-        for (final MapEntry<String, Object?> given in answers.entries)
-          if (given.value case final Object value) given.key: value,
-      }),
+      answers: answered,
     );
 
     // Refused here as well as in the run itself, and the duplication is the point: the run refuses
