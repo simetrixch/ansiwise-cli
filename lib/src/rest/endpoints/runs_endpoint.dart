@@ -179,14 +179,25 @@ final class RunsEndpoint {
       // proof it was never asked for.
       final List<Mode> waived = <Mode>[if (mode == Mode.run && !gate.requireDryRun) Mode.dry];
 
-      // What the operator supplied travels ON, not the validated copy: the run checks it again
-      // against the program's own declaration, and the process that will ACT on a value is the
-      // one that has to be sure of it. The check above is what stops a run that cannot succeed
-      // from being started at all.
+      // WHAT THE OPERATOR SUPPLIED TRAVELS ON, and `inputs.answers` is that and nothing else. The
+      // run checks it again against the program's own declaration, and the process that will ACT on
+      // a value is the one that has to be sure of it; the check above is what stops a run that
+      // cannot succeed from being started at all.
+      //
+      // NOT `answers`, WHICH IS THE FILLED COPY. `filledFor` puts the password under the name a
+      // program that declares it reads — this door needs it there to validate and to fingerprint —
+      // and the RUN fills it the same way from the password beside the answers. Sending the filled
+      // copy therefore sends it twice, and the run refuses exactly that:
+      //
+      //     standard input carries "elevation_password" among the answers, and that name holds the
+      //     password the run was started with — it is not an answer anybody sends
+      //
+      // Measured on apps4: every deploy-platform-services this manager started died on that line,
+      // and until the run recorded its reason there was nothing to read but an absence.
       final RunId id = await launcher.start(
         program: program.declared.name,
         mode: mode,
-        answers: answers,
+        answers: inputs.answers,
         elevationPassword: password,
         resumes: resumes,
         waived: waived,

@@ -172,31 +172,47 @@ void main() {
       );
     }
 
-    test('is started, and the run is handed the password AS an answer', () async {
-      final ({DeploymentApi api, RecordingLauncher launcher}) it = surfaceAsking();
+    // THE PASSWORD ARRIVES ONCE AND TRAVELS ONCE, and this used to say the opposite: it pinned the
+    // launcher being handed it AS AN ANSWER as well, under the reading "one arrival, two uses". A
+    // real machine refuses exactly that, and said so once a run could say anything at all:
+    //
+    //     standard input carries "elevation_password" among the answers, and that name holds the
+    //     password the run was started with — it is not an answer anybody sends
+    //
+    // The door still FILLS it for its own two uses — validating the answers a program declared, and
+    // fingerprinting the job the run will carry — because the run fills it the same way and the two
+    // numbers have to agree. What the launcher is handed is what the operator supplied.
+    test(
+      'is started, and the password travels once — beside the answers, never among them',
+      () async {
+        final ({DeploymentApi api, RecordingLauncher launcher}) it = surfaceAsking();
 
-      final ApiResponse answered = await it.api.call(
-        ApiRequest(
-          'POST',
-          Uri.parse('/runs'),
-          body: jsonEncode(<String, Object?>{
-            'program': 'deploy-thing',
-            'mode': 'dry',
-            'answers': <String, Object?>{},
-            'elevation_password': 'what raises a command',
-          }),
-        ),
-      );
+        final ApiResponse answered = await it.api.call(
+          ApiRequest(
+            'POST',
+            Uri.parse('/runs'),
+            body: jsonEncode(<String, Object?>{
+              'program': 'deploy-thing',
+              'mode': 'dry',
+              'answers': <String, Object?>{},
+              'elevation_password': 'what raises a command',
+            }),
+          ),
+        );
 
-      expect(
-        answered,
-        isA<Answered>(),
-        reason: 'the door refused a program for an answer the run fills itself',
-      );
-      expect(it.launcher.answers.single['elevation_password'], 'what raises a command');
-      // And beside it, the same value on the route the run itself uses — one arrival, two uses.
-      expect(it.launcher.passwords.single, 'what raises a command');
-    });
+        expect(
+          answered,
+          isA<Answered>(),
+          reason: 'the door refused a program for an answer the run fills itself',
+        );
+        expect(
+          it.launcher.answers.single.containsKey('elevation_password'),
+          isFalse,
+          reason: 'the run fills this name itself, and refuses a caller that sends it as well',
+        );
+        expect(it.launcher.passwords.single, 'what raises a command');
+      },
+    );
 
     test(
       'THE INNOCENT NEIGHBOUR: a program that does NOT ask for it is handed no such answer',
