@@ -1,7 +1,7 @@
 name: ansiwise_cli
 description: The main CLI executable for Ansiwise.
 publish_to: none
-version: 0.6.1
+version: 0.6.2
 
 # TWO PROGRAMS OUT OF ONE COMPOSITION ROOT. `ansiwise` executes a config flow against this machine;
 # `ansiwise-rest` serves the REST surface, over an address or over a session's own pipes, and places
