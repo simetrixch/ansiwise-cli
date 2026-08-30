@@ -32,9 +32,6 @@ Future<void> main(List<String> argv) async {
           'launcher writes one per gate that installation waived. An absent proof and a waived one '
           'look identical from the outside, and only one of them was somebody\'s choice',
     )
-    ..addOption('role', defaultsTo: 'master', help: 'what this machine is')
-    ..addOption('stage', defaultsTo: 'dev')
-    ..addOption('fqdn', defaultsTo: '', help: 'the domain name of this installation')
     ..addFlag(
       'no-unwind',
       help: 'disable unwinding steps on failure so evidence is preserved for debugging',
@@ -341,9 +338,9 @@ Future<int> _runProgram({
     mode: mode,
     argv: argv,
     start: machine.clock.now(),
-    stage: Stage(options.option('stage') ?? 'dev'),
-    role: Role(options.option('role') ?? 'master'),
-    fqdn: Fqdn(options.option('fqdn') ?? ''),
+    stage: Stage(options.option(stageOption) ?? 'dev'),
+    role: Role(options.option(roleOption) ?? 'master'),
+    fqdn: Fqdn(options.option(fqdnOption) ?? ''),
     commit: commit,
     fingerprint: fingerprint,
     resumes: resumes,

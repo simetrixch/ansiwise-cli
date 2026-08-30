@@ -72,6 +72,50 @@ void main() {
     );
   });
 
+  // WHAT THE MACHINE IS, WHICH A CHILD CANNOT WORK OUT AND WOULD OTHERWISE DEFAULT. The engine
+  // refuses a program whose `roles:` does not name the machine, and the option defaults to `master`
+  // — so a served run never told the role claims to be a master. On the first slave this platform
+  // ever deployed, fifteen steps passed and the sixteenth could not: `emit-cluster-credentials
+  // applies to slave, and this machine is master`, thrown out of Runner.run before the child wrote
+  // one event, leaving the caller on an event stream that would never carry anything.
+  test('what the machine IS travels with the child, beside where it stands', () {
+    expect(
+      placementFrom(
+        given(<String>[
+          'serve',
+          '--programs',
+          '/srv/ansiwise-catalog/ansiwise/programs',
+          '--role',
+          'slave',
+          '--stage',
+          'dev',
+          '--fqdn',
+          'apps4.digitacloud.app',
+        ]),
+      ),
+      <String>[
+        '--programs',
+        '/srv/ansiwise-catalog/ansiwise/programs',
+        '--role',
+        'slave',
+        '--stage',
+        'dev',
+        '--fqdn',
+        'apps4.digitacloud.app',
+      ],
+    );
+  });
+
+  // A ROLE OF TWO PARTS TRAVELS WHOLE. A machine can carry both jobs, and the engine reads a role's
+  // parts — a program declared for either one applies (Program.appliesTo). Splitting it here would
+  // be this composition deciding what a machine is.
+  test('a role naming two parts is handed on as it stands', () {
+    expect(placementFrom(given(<String>['serve', '--role', 'master+slave'])), <String>[
+      '--role',
+      'master+slave',
+    ]);
+  });
+
   // THE INNOCENT CASE. A surface standing where every default resolves was told nothing, so nothing
   // is handed on — and a child that resolves the same defaults against the same directory stands
   // exactly where its parent does. Passing the defaults down explicitly would read as a decision

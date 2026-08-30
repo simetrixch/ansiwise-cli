@@ -41,17 +41,44 @@ const String runIdOption = 'run';
 /// Where the envelope a run is told with is read from.
 const String answersOption = 'answers';
 
-/// The options that put a detached run where THIS process stands, as the words they arrived as.
+/// What the machine a run happens on IS — the part it carries.
 ///
-/// THREE AND NOT ALL OF THEM. What a child must be told is what it cannot work out for itself and
-/// would otherwise DEFAULT: where the programs are, which file names the active plugins, and where
-/// records are kept. Everything else on this command line is either about serving — an address, a
-/// token file — or about one run, and one run is told over its own envelope.
+/// A program declares which machines it applies to and the engine holds a run against that
+/// ([Program.appliesTo]). This defaults to `master`, so a run never told it claims to be one.
+const String roleOption = 'role';
+
+/// Which stage the installation this machine belongs to is.
+const String stageOption = 'stage';
+
+/// The domain name of the installation this machine belongs to.
+const String fqdnOption = 'fqdn';
+
+/// The options that put a detached run where THIS process stands, and say what machine it stands
+/// on, as the words they arrived as.
+///
+/// WHAT A CHILD CANNOT WORK OUT FOR ITSELF AND WOULD OTHERWISE DEFAULT. Three say where things are —
+/// the programs, the file naming the active plugins, the record directory. Three say what the
+/// MACHINE is — its role, its stage, its domain. Everything else on this command line is either
+/// about serving (an address, a token file) or about one run, and one run is told over its envelope.
+///
+/// THE ROLE IS HERE BECAUSE A MACHINE CANNOT BE ASKED WHAT IT IS. The engine refuses a program whose
+/// `roles:` does not name the machine, and this option defaults to `master` — so a served run never
+/// told the role claims to be a master, and on a slave the first program declared for a slave is
+/// refused. It cost a night on the first slave this ever ran on: fifteen steps of a deployment
+/// passed, because every program before that one applies to both parts.
 ///
 /// A value this process was NOT given is not passed on. Handing the default down explicitly would
-/// read as a decision somebody made, and it would freeze a default that is the child's to resolve.
+/// read as a decision somebody made, and it would freeze a default that is the child's to resolve —
+/// so a caller that says nothing about the machine leaves the child exactly where it was.
 List<String> placementFrom(ArgResults options) => <String>[
-  for (final String name in <String>[programsOption, configurationOption, runsOption])
+  for (final String name in <String>[
+    programsOption,
+    configurationOption,
+    runsOption,
+    roleOption,
+    stageOption,
+    fqdnOption,
+  ])
     if (options.wasParsed(name))
       if (options.option(name) case final String value) ...<String>['--$name', value],
 ];
@@ -168,6 +195,9 @@ void addSharedOptions(ArgParser parser) {
       help: 'the file naming which plugins are active',
     )
     ..addOption(runsOption, defaultsTo: RunDirectory.defaultRoot, help: 'where records are kept')
+    ..addOption(roleOption, defaultsTo: 'master', help: 'what this machine is')
+    ..addOption(stageOption, defaultsTo: 'dev')
+    ..addOption(fqdnOption, defaultsTo: '', help: 'the domain name of this installation')
     ..addOption(
       answersOption,
       help:
