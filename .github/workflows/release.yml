@@ -2,7 +2,7 @@
 #
 # WHAT STARTS IT. A pushed tag, and nothing else. The version and the channel in it are typed by a
 # person: which release a change deserves and how ripe it is are decisions, and nothing here takes
-# them. The tag is pushed by `dart run tool/release.dart <version> <channel>`, which shows what has
+# them. The tag is pushed by `release/release.sh <version> <channel>`, which shows what has
 # been released, proposes what could come next, bumps the version pubspec.yaml declares, commits that
 # bump and pushes an annotated tag — and it READS the filter below rather than carrying a second copy
 # of it, so a filter edited here is the filter a person is held to on the next run. THAT PROGRAM
@@ -155,8 +155,9 @@ jobs:
       # and a runner has no digita-deploy beside its checkout, so those five SKIP and say so, five
       # times, in the log. Thirteen run. What this job proves is that the tree is sound on its own;
       # what it cannot prove is that a binary of it reads a real installation.
-      - name: dart run tool/ci.dart
-        run: dart run tool/ci.dart
+      # THE GATE IS NOT HERE. It runs on the workstation, before the tag exists, because a
+      # verdict that arrives after the tag is a verdict about something already public.
+      # release/release.sh refuses to mint unless `dart run tool/ci.dart` is green there.
 
   build:
     name: linux-x64

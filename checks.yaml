@@ -75,17 +75,12 @@ resolved-packages: test/checks/resolved_packages_test.dart
 # The one Dart version the checks are true against is enforced by reading this process's own
 # version, and every other is refused with both numbers in the refusal.
 version-guard: test/checks/version_guard_test.dart
-# A version and a channel compose the one tag that starts a release, held against the filter
-# .github/workflows/release.yml triggers on — READ from that file rather than restated in Dart — and
-# pushed only when a person typed both. The two things no glob can state are stated in Dart and
-# checked here: a number carries no leading zero, and alpha is less ripe than stable, which is what
-# decides whether the release page marks a pre-release. What these binaries are released under is
-# what place-ansiwise then puts on every machine, so a tag typed straight into git is a version
-# nobody proposed and nothing held to anything. And the release carries ONE FILE PER BINARY
-# tool/build.dart writes, named so that one address reaches either — the workflow's list is held
-# against that map here, because a release attaching one of the two leaves a machine with a service
-# that answers and runs nothing.
-release: test/checks/release_test.dart
+# THE RELEASE CHECK IS GONE, AND THE RELEASE MOVED OUT OF DART. What composed a tag, admitted
+# a channel to a stage and stamped a manifest is now release/release.sh — shell, because the
+# release has to run when the product does not build and has to write into two repositories
+# that are not this one. Tying it to the toolchain this package pins is what stopped the gate
+# on 2026-09-01: the workstation had moved one patch version, tool/ci.dart refused every run,
+# and two releases were cut with nothing judging them at all.
 # Every dependency this package resolves out of git names a release tag and never a branch. A
 # package of this family produces no file, so whoever resolves one gets the tree standing at the ref
 # it named — and a branch ref hands this binary a different framework the next time anybody pushes,
