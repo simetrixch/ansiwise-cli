@@ -1,106 +1,35 @@
-# release — a pushed tag becomes a GitHub Release carrying the binaries a machine is given.
+# =============================================================================
+# release — the ONE place anything of ansiwise is built, and the only workflow
+# in any of its repositories.
+# =============================================================================
 #
-# WHAT STARTS IT. A pushed tag, and nothing else. The version and the channel in it are typed by a
-# person: which release a change deserves and how ripe it is are decisions, and nothing here takes
-# them. The tag is pushed by `release/release.sh <version> <channel>`, which shows what has
-# been released, proposes what could come next, bumps the version pubspec.yaml declares, commits that
-# bump and pushes an annotated tag — and it READS the filter below rather than carrying a second copy
-# of it, so a filter edited here is the filter a person is held to on the next run. THAT PROGRAM
-# CREATES NO RELEASE: the release, its notes and the pre-release marking are this file's work, which
-# is why it needs no `gh` and has no `gh` preflight.
+# ansiwise-cli is the product. ansiwise-core, ansiwise-plugins and ansiwise-checks
+# are its parts: they are released by nobody, they carry no workflow, and nothing
+# is built in them. Everything that has to happen to turn those four trees into
+# the engine a machine downloads happens HERE, once, in this file.
 #
-# WHAT THE ASSETS ARE, and why each is one file rather than an archive. hostyour-manager's
-# place-ansiwise fetches with `curl -fsSL "$downloadUrl" -o "$tmp"` and installs THAT file with
-# `install -m0755` as /usr/local/bin/ansiwise-<version>
-# (hostyour-manager/server/domains/runs/defs/place-ansiwise.ts). It unpacks nothing, so what is
-# attached here is the executable itself. The upload-artifact/download-artifact pair between the
-# build job and the publish job drops the executable bit — it carries files through a zip — and that
-# reaches nothing: the mode on the machine is the one `install -m0755` writes.
+# WHY ONE PLACE. Until 2026-09-01 each part had a release of its own that built
+# nothing — it turned a tag into a release page no resolver reads, because a git
+# dependency resolves out of the TAG. What those releases really cost was the
+# order between them: one behaviour fix took four rounds, and their forty-four
+# refs drifted between rounds. The twelve plugin packages stood on one commit of
+# ansiwise-checks while the cli and the core stood on another, and nothing said
+# so, because nothing compared them.
 #
-# THERE ARE TWO OF THEM, one per executable tool/build.dart writes, and a machine needs both:
-# `ansiwise` runs a declared program, and `ansiwise-rest` serves the REST surface and starts every
-# run by invoking `ansiwise` standing beside it (bin/ansiwise_rest.dart, `deploymentToolBeside`),
-# refusing to start when it is not there. A machine given one of the two comes up with a service
-# that answers and runs nothing.
+# WHAT STARTS IT. A pushed tag, and nothing else — release/release.sh mints it
+# and then waits here for the answer. The version and the channel in the tag are
+# typed by a person: which release a change deserves, and how ripe it is, are
+# decisions.
 #
-# HOW THEY ARE NAMED, and what that decides two repositories away. `<binary>-<tag>-linux-x64`, where
-# <binary> is the name the executable carries ON THE MACHINE — the same name tool/build.dart writes
-# and the same name each binary looks for the other under. So ONE address composes both files,
-# .../releases/download/<version>/<name>-<version>-linux-x64, and a fetcher fills in which binary it
-# wants and which version it pinned. Two addresses, one per binary, would be two settings able to
-# name two different releases, and then what stands on a machine is no longer what the one pin says.
-# tool/release_assets.dart spells the composition, and the release check holds this file against it.
-#
-# WHICH SYSTEM THEY ARE BUILT FOR. linux-x64, and only that one. `dart compile exe` produces a binary
-# for the system it runs on, so each target would be a runner of its own — as the three of
-# ansiwise-client are. THREE PLACES TAKE THESE FILES and every one of them is a Linux machine:
-# hostyour-manager's place-ansiwise fetches with `curl -fsSL` onto the fresh Ubuntu that
-# hostyour-cloud platform/versions.yaml's `ubuntu` pin names; digita-deploy
-# ansiwise/programs/deploy-cluster.yaml:714-719 fetches again on that same machine as an
-# `install_pinned_tool` row — which asks today for `ansiwise-linux-amd64` under a `v0.1.0` tag, a
-# name this workflow does not attach and a tag its filter at `on.push.tags` cannot even produce; and
-# ansiwise-client places from bytes an operator hands over (`MachineBinary.bytes`,
-# lib/infrastructure/session_transport.dart:146-171), fetching nothing itself. Each of those three
-# takes ONE of the two today; which files they fetch is decided where they are written, not here.
-# Nobody takes a Windows or a macOS build — a developer on either runs `dart run bin/ansiwise.dart`
-# out of this checkout — so a second and a third runner would attach files no caller asks for.
-# linux-arm64 is not built either: no caller asks for one — the three above all run on x64 — and an
-# asset nobody fetches must not be named in a release as though somebody did. GitHub's arm64
-# runners became reachable when this repository was made public; what stands in the way now is a
-# taker, not a runner.
-#
-# THE VERSION REACHES NOTHING INSIDE THE BINARY, and that is not an omission. The binary takes no
-# --version flag; what says which version stands on a machine is the NAME of the file the
-# /usr/local/bin/ansiwise symlink points at, which place-ansiwise writes itself from the pin it read
-# (place-ansiwise.ts, `ANSIWISE_BINARY_LINK`). So the tag is carried by each asset's name and by this
-# release, and a --build-name equivalent would be a second statement of it with nothing reading it.
-#
-# THE DART VERSION IS NOT WRITTEN HERE. tool/gate/pins.dart names the one SDK the checks are true
-# against, and both jobs that install one read it from there in the step after their checkout, so
-# neither can build with a Dart the checks never met. tool/gate/version_guard.dart then refuses the
-# run when the installed SDK is a different one, which is what makes the read provable rather than
-# hopeful.
+# WHAT IT DOES, IN ORDER. Loads all four trees at the commits this release names,
+# lints and tests every one of them, and only then builds the executable. A part
+# that is red stops the release before a binary exists, which is the whole reason
+# they are loaded here rather than trusted.
 name: release
 
 on:
   push:
     tags:
-      # THE GRAMMAR IS THE ONE EVERY RELEASE OF EVERYTHING IS CUT UNDER, and it is owned by
-      # hostyour-manager/shared/release.ts:22: `<major>.<minor>.<patch>-<channel>-<ts14>`, channel
-      # one of alpha|beta|stable, ts14 the UTC yyyyMMddHHmmss the tag was composed at. So
-      # 0.1.0-alpha-20260821194500 and 0.1.0-stable-20260901120000 are tags; a bare 0.1.0 is not,
-      # v0.1.0 is not, and 0.1.0-beta.2 is not. The channel is ALWAYS there, and it is a CEILING on
-      # which environment may run the tag — alpha reaches dev, beta reaches test, stable reaches
-      # everywhere. That ceiling is enforced where deployments are written and NOT here
-      # (release.ts:8); what this filter decides is only whether a pushed tag builds at all.
-      #
-      # WHY THE ts14 IS IN THE TAG AND NOT AN AFTERTHOUGHT: two releases of one version on one
-      # channel are a real thing — the same version cut again from a later commit — and the stamp is
-      # what makes them two tags instead of one name pushed twice.
-      #
-      # WHAT THESE THREE PATTERNS SAY. One per channel, because a filter pattern has NO ALTERNATION
-      # and `alpha|beta|stable` cannot be written in one. This is a filter pattern and NOT a regular
-      # expression: `[0-9]` matches one digit, `+` says one or more of what stands before it, `*` is
-      # any run of characters carrying no `/`, and everything else — `.` and `-` included — stands
-      # for itself (the filter pattern cheat sheet of
-      # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax, read
-      # 2026-08-21). A tag matches a pattern only as a WHOLE, which is what the fourteen spelled-out
-      # `[0-9]` rest on: the pattern ends after the fourteenth digit, so a fifteenth is left over and
-      # starts nothing, and so does 0.1.0-alpha-2026 with only four. There is no `*` anywhere in
-      # these patterns — the one that stood here before ended in a `*` that swallowed the build
-      # metadata 0.1.0+7 carried, and run 32493864140 is what that looked like when it did.
-      #
-      # WHERE THIS IS STILL WIDER THAN THE GRAMMAR, and it is now one thing rather than three. There
-      # is no alternation, so `0|[1-9][0-9]*` cannot be written and 01.2.3-stable-20260901120000 is
-      # admitted here though release.ts:22 refuses it. Narrowing that away would take twenty-seven
-      # patterns for the three numbers alone — times three channels — or a negative `!` pattern,
-      # which tool/release_tag_filter.dart refuses to read because it reads what a filter ACCEPTS.
-      # What closes it instead is tool/release_versions.dart's numbersRefusalFor, in the program that
-      # composes the tag, and a leading zero is refused there before anything is pushed.
-      #
-      # WHAT IS NOT A RESIDUAL: `[0-9]` fourteen times admits 99999999999999, which is no calendar
-      # moment — and neither does release.ts:22 refuse it, since it reads `[0-9]{14}` as well. The
-      # two agree, so there is nothing here for anything downstream to disagree with.
       - '[0-9]+.[0-9]+.[0-9]+-alpha-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
       - '[0-9]+.[0-9]+.[0-9]+-beta-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
       - '[0-9]+.[0-9]+.[0-9]+-stable-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
@@ -112,21 +41,19 @@ concurrency:
   group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
-# WHAT A RELEASE CARRIES, stated once for every job that has to name it. BINARIES is the list
-# tool/build.dart writes, spelled with the names a machine carries them under, and both the build
-# job and the publish job compose `<binary>-$TAG-linux-x64` from it — the composition
-# tool/release_assets.dart states and the release check holds this file against. A second list
-# somewhere would be a second answer to which files a release has.
 env:
   TAG: ${{ github.ref_name }}
   BINARIES: ansiwise ansiwise-rest
 
 jobs:
+  # ── every tree this engine is made of, linted and tested ───────────────────
   gate:
-    name: the gate
+    name: the gate over every part
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - id: pin
         name: read the pinned Dart version
@@ -136,35 +63,97 @@ jobs:
           version="$(sed -n "s/^const String dartVersion = '\(.*\)';\$/\1/p" tool/gate/pins.dart)"
           test -n "$version"
           echo "dart=$version" >> "$GITHUB_OUTPUT"
-          echo "tool/gate/pins.dart pins Dart $version"
 
       - uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
         with:
           sdk: ${{ steps.pin.outputs.dart }}
 
-      # The gate resolves the tree itself — `dart pub get` is its first step — analyses, formats and
-      # tests every package of this repository, and refuses every SDK but the one the step above
-      # installed. IT COMPILES NOTHING: the binary-build check drives tool/gate/binary_build.dart
-      # over a scripted toolchain, so what it reads is how a compiler's answer is reported and not
-      # whether this tree compiles. The build job below is where a real `dart compile exe` runs, and
-      # a tree that does not compile fails there.
-      #
-      # IT DOES NOT RUN EVERY CHECK checks.yaml declares, and the difference is worth knowing before
-      # a green here is read as more than it is. Five of the eighteen read an INSTALLATION tree —
-      # config-validity, configuration-composes, resident-service, service-unit, subcommands-start —
-      # and a runner has no digita-deploy beside its checkout, so those five SKIP and say so, five
-      # times, in the log. Thirteen run. What this job proves is that the tree is sound on its own;
-      # what it cannot prove is that a binary of it reads a real installation.
-      # THE GATE IS NOT HERE. It runs on the workstation, before the tag exists, because a
-      # verdict that arrives after the tag is a verdict about something already public.
-      # release/release.sh refuses to mint unless `dart run tool/ci.dart` is green there.
+      # THE PARTS ARE LOADED AT THE COMMITS THIS MANIFEST NAMES, never at a
+      # branch. What the build resolves and what this job judges are then the
+      # same trees; a job that tested the tip while the build resolved a commit
+      # would be green about something the release does not contain.
+      - id: parts
+        name: read the commit of each part out of the manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          for repo in ansiwise-core ansiwise-plugins ansiwise-checks; do
+            ref="$(awk -v repo="$repo" '
+              $0 ~ "url: https://github.com/simetrixch/" repo "\\.git" { want = 1; next }
+              want && /ref:/ { sub(/.*ref:[ \t]*/, ""); print; exit }
+            ' pubspec.yaml)"
+            test -n "$ref" || { echo "gate: FAIL — pubspec.yaml names no ref for $repo"; exit 1; }
+            echo "${repo//-/_}=$ref" >> "$GITHUB_OUTPUT"
+            echo "gate: $repo at $ref"
+          done
 
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: simetrixch/ansiwise-core
+          ref: ${{ steps.parts.outputs.ansiwise_core }}
+          path: parts/ansiwise-core
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: simetrixch/ansiwise-plugins
+          ref: ${{ steps.parts.outputs.ansiwise_plugins }}
+          path: parts/ansiwise-plugins
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: simetrixch/ansiwise-checks
+          ref: ${{ steps.parts.outputs.ansiwise_checks }}
+          path: parts/ansiwise-checks
+
+      # EACH PART IS JUDGED THE WAY IT JUDGES ITSELF. ansiwise-core carries a
+      # gate of its own and it is run as such; the others are packages and are
+      # analysed, formatted and tested one by one. A package that grows a gate
+      # later is picked up by the same test below without this file changing.
+      - name: lint and test every part
+        shell: bash
+        run: |
+          set -euo pipefail
+          judge() {
+            local dir="$1"
+            if [ -f "$dir/tool/ci.dart" ]; then
+              echo "::group::$dir — its own gate"
+              ( cd "$dir" && dart pub get >/dev/null && dart run tool/ci.dart )
+              echo "::endgroup::"
+              return 0
+            fi
+            local package
+            for package in "$dir"/*/pubspec.yaml "$dir"/pubspec.yaml; do
+              [ -f "$package" ] || continue
+              local at; at="$(dirname "$package")"
+              [ -d "$at/test" ] || continue
+              echo "::group::$at"
+              ( cd "$at" \
+                && dart pub get >/dev/null \
+                && dart analyze --fatal-infos \
+                && dart format --output=none --set-exit-if-changed . \
+                && dart test )
+              echo "::endgroup::"
+            done
+          }
+          judge parts/ansiwise-checks
+          judge parts/ansiwise-core
+          judge parts/ansiwise-plugins
+
+      - name: dart pub get
+        run: dart pub get
+
+      - name: the product's own gate
+        run: dart run tool/ci.dart
+
+  # ── the executable ─────────────────────────────────────────────────────────
   build:
-    name: linux-x64
+    name: the executable
     needs: gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - id: pin
         name: read the pinned Dart version
@@ -182,34 +171,11 @@ jobs:
       - name: dart pub get
         run: dart pub get
 
-      # tool/build.dart and not `dart compile exe` written out here: it writes lib/plugins.dart from
-      # plugins.yaml and lib/service_unit.dart from ansiwise.service BEFORE it compiles, because the
-      # compiler reads both as source. A `dart compile exe` invoked directly would compile whatever
-      # those two files last held, which is a binary carrying a plugin set nobody declared.
-      #
-      # THE ARGUMENT IS A DIRECTORY: the tool writes one executable per entry of its own `binaries`
-      # map and names each one as the other looks for it, so the names inside are not this file's to
-      # choose. It stops after a failure rather than leaving one of the two behind.
-      # THE TAG REACHES THE COMPILER THROUGH THE ENVIRONMENT, and this is the only place a release
-      # is told to the binaries it produces. tool/build.dart writes lib/release_stamp.dart from it
-      # before compiling — the third generated source beside lib/plugins.dart and
-      # lib/service_unit.dart, and for the same reason: the compiler reads source.
-      #
-      # WITHOUT IT A RELEASE SHIPS BINARIES ANSWERING `unreleased`, which is the state this
-      # repository is in for every build that is not a release. Nothing else would notice: the
-      # archive is the right size, the gate is green, and a machine placed from it answers a version
-      # no pin can match, so a pinned-tool step fetches it again on every single run.
       - name: dart run tool/build.dart
         env:
-          ANSIWISE_RELEASE_TAG: ${{ env.TAG }}
+          TAG: ${{ github.ref_name }}
         run: dart run tool/build.dart build/linux-x64
 
-      # The built name is what each binary finds the other under; the released name carries the tag
-      # as well, so every one of them is moved to the name the release attaches it as.
-      #
-      # THE `test -f` IS WHAT CATCHES A MISSING ONE, and `if-no-files-found: error` below cannot do
-      # it: that setting fires when NOTHING was found, so one file of two would upload quietly and
-      # reach the release as a name with no file behind it.
       - name: name every binary as the release attaches it
         shell: bash
         run: |
@@ -229,8 +195,8 @@ jobs:
         with:
           name: linux-x64
           path: build/assets
-          if-no-files-found: error
 
+  # ── the release page ───────────────────────────────────────────────────────
   publish:
     name: the release
     needs: build
@@ -238,79 +204,52 @@ jobs:
     permissions:
       contents: write
     steps:
-      # fetch-depth: 0 because the notes are read from the history: every tag standing here, to find
-      # the release this one follows, and the commit subjects in the range between the two. A shallow
-      # checkout has neither, and tool/release_notes.dart refuses rather than publish a page that
-      # says nothing changed because nobody looked.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-
-      - id: pin
-        name: read the pinned Dart version
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="$(sed -n "s/^const String dartVersion = '\(.*\)';\$/\1/p" tool/gate/pins.dart)"
-          test -n "$version"
-          echo "dart=$version" >> "$GITHUB_OUTPUT"
-
-      - uses: dart-lang/setup-dart@7654d458321ee25acccccfdb86cd48bd95768ff1 # v1.8.0
-        with:
-          sdk: ${{ steps.pin.outputs.dart }}
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artefacts
           merge-multiple: true
 
-      # WHAT THE NOTES ARE, and why `--generate-notes` is not what makes them. Generated notes are
-      # built from the pull requests merged between two releases and the new contributors among them.
-      # THIS REPOSITORY HAS NO PULL REQUESTS: `git log --merges` over its whole history answers with
-      # nothing, and every commit is a commit on master. So there was nothing for GitHub to list and
-      # the page carried a compare link and not one line about what changed. Tags being unique per
-      # release did not change that — the grammar decides how many releases there are, not where the
-      # sentences come from. tool/release_notes.dart reads the commit subjects out of the range
-      # instead, and prints `prerelease=true|false` read from the channel in the tag.
-      #
-      # No `dart pub get` above this step: everything under tool/ imports nothing but `dart:` and
-      # this directory, so the SDK alone is enough to run it.
-      # The one line is GREPPED out of what the program wrote rather than redirected wholesale: this
-      # is the only thing standing between the tag and how the release is marked, and a stray line on
-      # stdout would become a `prerelease` output nobody wrote. A run that printed no such line fails
-      # the step, because no marking at all is better than a marking nothing decided.
+      # THE NOTES ARE THE SUBJECTS SINCE THE PREVIOUS TAG, and the commit of each
+      # part this engine was built from. A commit is what a manifest names now,
+      # and a reader cannot tell one from another by looking — so the page says
+      # which ones went in, which is the legibility a tag used to carry.
       - id: notes
-        name: dart run tool/release_notes.dart
+        name: write the release notes
         shell: bash
         run: |
           set -euo pipefail
-          said="$(dart run tool/release_notes.dart "$TAG" release-notes.md)"
-          grep -E '^prerelease=(true|false)$' <<<"$said" >> "$GITHUB_OUTPUT"
+          channel="$(cut -d- -f2 <<<"$TAG")"
+          case "$channel" in
+            stable) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
+          esac
+          previous="$(git tag --list --sort=-creatordate \
+                      '[0-9]*.[0-9]*.[0-9]*-*-[0-9]*' | grep -v "^$TAG$" | head -1 || true)"
+          {
+            if [ -n "$previous" ]; then
+              echo "## Since $previous"
+              echo
+              git log --no-merges --format='- %s' "$previous..$TAG"
+            else
+              echo "## The first release on this line"
+            fi
+            echo
+            echo "## The parts this engine was built from"
+            echo
+            for repo in ansiwise-core ansiwise-plugins ansiwise-checks; do
+              ref="$(awk -v repo="$repo" '
+                $0 ~ "url: https://github.com/simetrixch/" repo "\\.git" { want = 1; next }
+                want && /ref:/ { sub(/.*ref:[ \t]*/, ""); print; exit }
+              ' pubspec.yaml)"
+              echo "- \`$repo\` at [\`${ref:0:12}\`](https://github.com/simetrixch/$repo/commit/$ref)"
+            done
+          } > release-notes.md
           cat release-notes.md
 
-      # EVERY ASSET IS NAMED OUTRIGHT rather than globbed, and the file behind each name is required
-      # before the release is created: a glob over what the download happened to bring would publish
-      # a release with one binary in it, or with none, and say nothing about the missing one. The
-      # names are composed here the same way the build job composed them, out of the one BINARIES
-      # list this file states, so a disagreement between the two jobs ends this step instead of
-      # ending as a release nobody can fetch from.
-      #
-      # THE CHANNEL DECIDES THE MARKING AND NOTHING ELSE HERE. alpha and beta are pre-releases —
-      # hostyour-manager/shared/release.ts:12 ranks stable as the ripest — so they are marked
-      # `--prerelease` and stable is published plainly. The channel is also a CEILING on which
-      # environment may run the tag, and that ceiling is enforced where deployments are written
-      # (release.ts:8), not here: a release published plainly is not a release deployed anywhere.
-      #
-      # WHAT THE ADDRESS OF A PUBLISHED FILE THEN IS, and why it belongs in this comment: it is what
-      # an installation sets ANSIWISE_DOWNLOAD_URL to, with `<version>` where the tag goes and
-      # `<name>` where the binary does —
-      # https://github.com/${{ github.repository }}/releases/download/<version>/<name>-<version>-linux-x64
-      # ONE address reaches both files, which is why the binary name stands in front: the manager
-      # fills every placeholder from the one pin it read (hostyour-cloud platform/versions.yaml,
-      # `cliTools.ansiwise.version`), so the address and the pin can never name two versions, and no
-      # second setting can point the second binary at a different release. That fetch carries NO
-      # credential — place-ansiwise runs a plain `curl -fsSL` on the machine — so every asset has to
-      # be readable without one.
       - name: publish the release
         shell: bash
         env:

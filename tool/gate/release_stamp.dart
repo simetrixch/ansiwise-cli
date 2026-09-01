@@ -24,7 +24,7 @@ library;
 
 import 'dart:io';
 
-import '../release_versions.dart';
+import 'release_versions.dart';
 
 /// The environment variable a release run states the tag in.
 ///
