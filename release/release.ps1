@@ -55,7 +55,7 @@ foreach ($tool in @('git', 'gh')) {
 }
 
 $platformRepo = 'simetrixch/hostyour-cloud'
-$catalogRepo = 'digitaplatform/digita-deploy'
+$catalogRepo = 'simetrixch/hostyour-deploy'
 $platformPin = 'clusters/platform/versions.yaml'
 $catalogPin = 'ansiwise/programs/deploy-cluster.yaml'
 

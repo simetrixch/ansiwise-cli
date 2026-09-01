@@ -49,7 +49,7 @@ for tool in git gh awk sed; do
 done
 
 PLATFORM_REPO="simetrixch/hostyour-cloud"
-CATALOG_REPO="digitaplatform/digita-deploy"
+CATALOG_REPO="simetrixch/hostyour-deploy"
 PLATFORM_PIN="clusters/platform/versions.yaml"
 CATALOG_PIN="ansiwise/programs/deploy-cluster.yaml"
 
