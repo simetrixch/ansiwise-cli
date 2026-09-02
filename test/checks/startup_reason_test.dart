@@ -2,22 +2,21 @@
 ///
 ///   dart test test/checks/startup_reason_test.dart
 ///
-/// **THE DEFECT THIS EXISTS FOR COST MOST OF A NIGHT.** A run started over `ansiwise-rest serve` is a
-/// DETACHED CHILD whose standard error is a pipe nobody reads — the launcher writes its standard
-/// input and forgets the run exists, in its own words. So every refusal this binary makes BEFORE it
-/// writes a header reached nobody, and the caller was left with an absence:
+/// **THE DEFECT THIS EXISTS FOR.** A run started over `ansiwise-rest serve` is a DETACHED CHILD
+/// whose standard error is a pipe nobody reads — the launcher writes its standard input and forgets
+/// the run exists, in its own words. A refusal this binary makes BEFORE it writes a header therefore
+/// reaches nobody, and the caller is left with an absence:
 ///
 ///     machine run 20260827T125317Z-… was accepted but never wrote its record — it started
 ///     and died before its first step; read the machine's serve log
 ///
-/// There was no serve log. Three separate defects on one installation were diagnosed only by running
-/// the child BY HAND with the same envelope, because the machine kept its own words to itself.
+/// There is no serve log. Such a defect is diagnosable only by running the child BY HAND with the
+/// same envelope, because the machine keeps its own words to itself.
 ///
 /// TWO THINGS ARE HELD, and they are different in kind. The first is behaviour: a run given an
 /// identifier writes its reason beside the records, and a run given none does not. The second is
 /// STRUCTURAL: no other place in this binary may write to standard error and then end the run,
-/// because a refusal that skips StartupReason.refuse is a refusal nobody can read — and that is exactly
-/// how sixteen of them came to exist.
+/// because a refusal that skips StartupReason.refuse is a refusal nobody can read.
 library;
 
 import 'dart:convert';
@@ -94,9 +93,9 @@ void main() {
     );
   });
 
-  // THE STRUCTURAL HALF. Every one of these used to be its own `stderr.writeln` followed by its own
-  // exit, and every one of them was unreadable to the caller that matters. What keeps a new one from
-  // being written the same way is this, and not anybody's memory.
+  // THE STRUCTURAL HALF. A refusal written as its own `stderr.writeln` followed by its own exit is
+  // unreadable to the caller that matters. What keeps a new one from being written that way is this
+  // test, and not anybody's memory.
   test('nothing else in this binary says something and then ends the run', () {
     final List<String> offenders = <String>[];
     for (final File source in <File>[File('bin/ansiwise.dart'), File('lib/installation.dart')]) {

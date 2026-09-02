@@ -52,7 +52,8 @@ binary-build: test/checks/binary_build_test.dart
 # package of its own, and a manifest under a build output or a resolved dependency is not one either.
 dart-packages: test/checks/dart_packages_test.dart
 # The gate finds every package of the repository it stands in, rather than the one directory its own
-# script sits in — which is how it once printed "every check green" over files it had never opened.
+# script sits in. A gate that walks its own directory prints "every check green" over files it has
+# never opened, and says nothing about the packages standing beside it.
 gate-tree: test/checks/gate_tree_test.dart
 # The gate files that judge nothing are one text in every repository that has a gate — a repair that
 # lands in one copy and not the other is what this reports.
@@ -75,12 +76,12 @@ resolved-packages: test/checks/resolved_packages_test.dart
 # The one Dart version the checks are true against is enforced by reading this process's own
 # version, and every other is refused with both numbers in the refusal.
 version-guard: test/checks/version_guard_test.dart
-# THE RELEASE CHECK IS GONE, AND THE RELEASE MOVED OUT OF DART. What composed a tag, admitted
-# a channel to a stage and stamped a manifest is now release/release.sh — shell, because the
+# THERE IS NO RELEASE CHECK, AND THE RELEASE IS NOT IN DART. What composes a tag, admits
+# a channel to a stage and stamps a manifest is release/release.sh — shell, because the
 # release has to run when the product does not build and has to write into two repositories
-# that are not this one. Tying it to the toolchain this package pins is what stopped the gate
-# on 2026-09-01: the workstation had moved one patch version, tool/ci.dart refused every run,
-# and two releases were cut with nothing judging them at all.
+# that are not this one. Tying it to the toolchain this package pins stops the gate outright:
+# a workstation one patch version ahead makes tool/ci.dart refuse every run, and a release is
+# then cut with nothing judging it at all.
 # Every dependency this package resolves out of git names a release tag and never a branch. A
 # package of this family produces no file, so whoever resolves one gets the tree standing at the ref
 # it named — and a branch ref hands this binary a different framework the next time anybody pushes,
@@ -91,19 +92,19 @@ dependency-pins: test/checks/dependency_pins_test.dart
 # elevation refusal is asked of a run about the one thing it can answer. `serve` comes through the
 # same entry as a run and can be handed no password — its standard input IS the connection — so a
 # refusal placed at that entry takes the whole REST surface away from any installation whose
-# elevation comes from the caller. It did, and nothing noticed. The three runs beside it hold where
+# elevation comes from the caller, and nothing notices. The three runs beside it hold where
 # that refusal stands: told nothing it refuses, told the silence is meant it goes ahead holding no
 # password, told both it refuses again.
 subcommands-start: test/checks/subcommands_start_test.dart
 
-# Where a run that never started says why. Every refusal this binary makes before it writes a header
-# used to go to standard error and nowhere else — and a run over `ansiwise-rest serve` is a detached
-# child whose standard error is a pipe nobody reads, so the caller was left with an absence:
-# "accepted but never wrote its record". Three separate defects on one installation were diagnosed
-# only by running the child by hand with the same envelope. This holds both halves: that a run given
+# Where a run that never started says why. A refusal this binary makes before it writes a header
+# that goes to standard error and nowhere else is a refusal nobody reads — a run over
+# `ansiwise-rest serve` is a detached child whose standard error is a pipe nobody reads, so the
+# caller is left with an absence: "accepted but never wrote its record", diagnosable only by
+# running the child by hand with the same envelope. This holds both halves: that a run given
 # an identifier records its reason beside the records and a run given none does not, and that nothing
 # else in the binary says something and then ends the run — because a refusal that skips the
-# recording is a refusal nobody can read, and that is how sixteen of them came to exist.
+# recording is a refusal nobody can read.
 startup-reason: test/checks/startup_reason_test.dart
 
 # What a run that says it hands over no password may promise, held against what the engine does with

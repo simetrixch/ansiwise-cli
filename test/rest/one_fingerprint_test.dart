@@ -8,15 +8,14 @@
 /// number over anything other than what the run will carry is a real run that is refused for ever
 /// after its own green dry.
 ///
-/// **THAT SHIPPED, and it stopped this platform.** `validate` does not only judge answers: it fills
-/// every answer that has a default, fills every answer that FALLS BACK to another from the one it
-/// names, and works out every derived answer. `ansiwise.dart` fingerprints exactly what that call
-/// returns. This door called it for the judgement and threw the answer away, fingerprinting the
-/// caller's raw map instead. Measured on apps4.digitacloud.app on 2026-08-27: `deploy-cluster`
-/// declares `books_fqdn` with a `default_from`, the manager's master arm sends neither it nor the
-/// value it falls back from, and the two numbers came out `ca14d4f14aea…` (door) against
-/// `4bfda385e985…` (machine). A retry cannot clear it — the next dry records the same number the
-/// door still does not ask for.
+/// **WHAT MAKES THEM DISAGREE.** `validate` does not only judge answers: it fills every answer that
+/// has a default, fills every answer that FALLS BACK to another from the one it names, and works out
+/// every derived answer. `ansiwise.dart` fingerprints exactly what that call returns. A door that
+/// calls it for the judgement and throws the answer away, fingerprinting the caller's raw map
+/// instead, stops the platform: `deploy-cluster` declares `books_fqdn` with a `default_from`, the
+/// manager's master arm sends neither it nor the value it falls back from, and the two numbers come
+/// out `ca14d4f14aea…` (door) against `4bfda385e985…` (machine). A retry cannot clear it — the next
+/// dry records the same number the door does not ask for.
 ///
 /// WHAT IS HELD is the outcome and never the wording: a dry run recorded with the number the RUN
 /// computes is a dry run this door admits the run against.
@@ -115,7 +114,7 @@ void main() {
     answers: program.declared.answers.validate(given, program: program.declared.name.value),
   );
 
-  // THE CASE THAT SHIPPED. The caller states `fqdn` and leaves `books_fqdn` out, exactly as the
+  // THE CASE THIS IS ABOUT. The caller states `fqdn` and leaves `books_fqdn` out, exactly as the
   // manager's master arm does. The run fills it from `fqdn`; the door has to fingerprint the same
   // filled shape, or the dry the machine recorded is a dry this door can never find.
   test('a dry recorded by the RUN admits the real run when an answer fell back', () async {

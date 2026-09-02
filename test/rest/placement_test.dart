@@ -61,7 +61,7 @@ void main() {
     );
   });
 
-  // THE EXACT SHAPE THE MANAGER USES, and the one that shipped broken: the working directory is the
+  // THE EXACT SHAPE THE MANAGER USES, and the one that goes wrong: the working directory is the
   // catalogue and the programs are NOT under it at the default name.
   test('a surface told only where the programs are hands on only that', () {
     expect(

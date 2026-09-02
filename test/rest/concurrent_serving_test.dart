@@ -129,7 +129,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 5));
     }
 
-    // The stream is open and mid-answer. This is the moment the old sequential loop spent blocked,
+    // The stream is open and mid-answer. This is the moment a sequential loop would spend blocked,
     // and the request below is the `GET /runs/{id}`-shaped call a manager makes to re-attach.
     final (int status, String body) = await get(server.port, '/programs');
     expect(status, 200);

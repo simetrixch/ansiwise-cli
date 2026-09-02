@@ -6,7 +6,7 @@ import '../../tool/gate/version_guard.dart';
 
 /// The version guard, driven with scripted versions.
 ///
-/// The guard is what the pin IS now that no container installs it: the gate refuses to run on any
+/// The guard is what the pin IS, because no container installs it: the gate refuses to run on any
 /// SDK but the pinned one, so a green run means green against one toolchain. Both directions are
 /// probed — a guard that never refuses is no pin, and one that refuses the pinned SDK stops every
 /// run — and the parse is held against the real `Platform.version` of the SDK running this suite,

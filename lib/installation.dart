@@ -13,8 +13,7 @@
 /// anything, and every refusal here is an operator's to fix: a configuration that is not there, a
 /// plugin name nothing carries, a password file that cannot be read, a directory holding no
 /// programs. Each states what is wrong and leaves through the exit code that says which kind of
-/// wrong it was, exactly as it did when this stood inside one entry point. A caller that wanted to
-/// carry on would be a caller with nothing to carry on with.
+/// wrong it was. A caller that wanted to carry on would be a caller with nothing to carry on with.
 library;
 
 import 'dart:convert';

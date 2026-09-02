@@ -1,16 +1,16 @@
 /// Writing `lib/plugins.dart` out of the manifest that says which plugins a binary carries.
 ///
-/// **What this exists to stop.** The plugin set used to be a hand-kept Dart file, which made a
-/// tool-named repository into a product one: a second customer with a different set needed a COPY of
-/// the composition root — argument parsing, `serve`, the gate and all — and from that moment the two
-/// drifted. Every repair would land in one of them.
+/// **What this exists to stop.** A hand-kept Dart plugin set makes a tool-named repository into a
+/// product one: a second customer with a different set needs a COPY of the composition root —
+/// argument parsing, `serve`, the gate and all — and from that moment the two drift, with every
+/// repair landing in one of them.
 ///
 /// **Why generated rather than read at run time.** Dart compiles ahead of time, so the imports have
 /// to be in the source before anything runs; a list read from a file at start-up cannot bring a
 /// package with it. So the manifest is turned into source, and the compiler sees exactly what a
 /// hand-written file would have said.
 ///
-/// **Why a generation step is acceptable here and was not for the gate.** The gate has to start on a
+/// **Why a generation step is acceptable here and is not for the gate.** The gate has to start on a
 /// fresh clone where nothing is resolved, so it can generate nothing. This runs at BUILD time, where
 /// everything is resolved and the toolchain is already in hand.
 ///

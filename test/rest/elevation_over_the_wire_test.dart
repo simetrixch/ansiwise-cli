@@ -172,9 +172,9 @@ void main() {
       );
     }
 
-    // THE PASSWORD ARRIVES ONCE AND TRAVELS ONCE, and this used to say the opposite: it pinned the
-    // launcher being handed it AS AN ANSWER as well, under the reading "one arrival, two uses". A
-    // real machine refuses exactly that, and said so once a run could say anything at all:
+    // THE PASSWORD ARRIVES ONCE AND TRAVELS ONCE, and the opposite reading — "one arrival, two
+    // uses", pinning the launcher being handed it AS AN ANSWER as well — is one a real machine
+    // refuses outright, and says so in as many words:
     //
     //     standard input carries "elevation_password" among the answers, and that name holds the
     //     password the run was started with — it is not an answer anybody sends

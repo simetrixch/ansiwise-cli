@@ -79,12 +79,12 @@ try {
   # A COMMIT, NOT A TAG. The parts are released by nobody, so there is no tag of theirs to name —
   # and a commit is the stronger statement anyway: a tag can be moved onto another tree, a commit
   # cannot, because its name IS its content. The release notes give back the legibility a tag
-  # carried, by naming each one.
+  # carries, by naming each one.
   #
   # ONE PLACE PER REPOSITORY, however many packages it holds: ansiwise-plugins is a dozen packages
   # in one tree and every one of them is named out of the same checkout. A rewrite that matched a
-  # loose version string instead would reach the neighbouring repository's ref as well — measured
-  # on 2026-09-01, when exactly that overwrote the ansiwise-core ref with a plugins tag.
+  # loose version string instead would reach the neighbouring repository's ref as well,
+  # overwriting the ansiwise-core ref with a plugins tag.
   foreach ($repo in @('ansiwise-core', 'ansiwise-plugins', 'ansiwise-checks')) {
     $sha = (git ls-remote "https://github.com/simetrixch/$repo.git" refs/heads/master) -split "`t" | Select-Object -First 1
     if (-not $sha) { Die "$repo has no master to build from. Nothing has been minted or pushed" }
@@ -124,9 +124,8 @@ try {
 
   # ── wait at that build, asked for BY NAME ──────────────────────────────────
   # NEVER `gh run list --limit 1`. In the seconds after a push the newest run is still the PREVIOUS
-  # release's, and reading it reports a verdict that belongs to another tag. Measured on
-  # 2026-09-01: a script did exactly that and announced a green build for a release that had not
-  # started.
+  # release's, and reading it reports a verdict that belongs to another tag: a script that does
+  # exactly that announces a green build for a release that has not started.
   $state = ''
   for ($i = 0; $i -lt 120; $i++) {
     $state = (gh run list --limit 15 --json displayTitle,status,conclusion `

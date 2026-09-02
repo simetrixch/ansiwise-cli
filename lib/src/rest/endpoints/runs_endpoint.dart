@@ -192,8 +192,8 @@ final class RunsEndpoint {
       //     standard input carries "elevation_password" among the answers, and that name holds the
       //     password the run was started with — it is not an answer anybody sends
       //
-      // Measured on apps4: every deploy-platform-services this manager started died on that line,
-      // and until the run recorded its reason there was nothing to read but an absence.
+      // A manager sending the filled copy sees every run it starts die on that line, with nothing
+      // to read but an absence unless the run records its reason.
       final RunId id = await launcher.start(
         program: program.declared.name,
         mode: mode,

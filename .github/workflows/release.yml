@@ -8,13 +8,12 @@
 # is built in them. Everything that has to happen to turn those four trees into
 # the engine a machine downloads happens HERE, once, in this file.
 #
-# WHY ONE PLACE. Until 2026-09-01 each part had a release of its own that built
-# nothing — it turned a tag into a release page no resolver reads, because a git
-# dependency resolves out of the TAG. What those releases really cost was the
-# order between them: one behaviour fix took four rounds, and their forty-four
-# refs drifted between rounds. The twelve plugin packages stood on one commit of
-# ansiwise-checks while the cli and the core stood on another, and nothing said
-# so, because nothing compared them.
+# WHY ONE PLACE. A release of its own per part builds nothing — it turns a tag
+# into a release page no resolver reads, because a git dependency resolves out of
+# the TAG. What such releases really cost is the order between them: one behaviour
+# fix takes four rounds, and forty-four refs drift between rounds. The twelve
+# plugin packages stand on one commit of ansiwise-checks while the cli and the
+# core stand on another, and nothing says so, because nothing compares them.
 #
 # WHAT STARTS IT. A pushed tag, and nothing else — release/release.sh mints it
 # and then waits here for the answer. The version and the channel in the tag are
@@ -214,9 +213,9 @@ jobs:
           merge-multiple: true
 
       # THE NOTES ARE THE SUBJECTS SINCE THE PREVIOUS TAG, and the commit of each
-      # part this engine was built from. A commit is what a manifest names now,
-      # and a reader cannot tell one from another by looking — so the page says
-      # which ones went in, which is the legibility a tag used to carry.
+      # part this engine was built from. A commit is what a manifest names, and a
+      # reader cannot tell one from another by looking — so the page says which
+      # ones went in, which is the legibility a tag carries by itself.
       - id: notes
         name: write the release notes
         shell: bash

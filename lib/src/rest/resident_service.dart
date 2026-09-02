@@ -21,11 +21,12 @@ final class ResidentServiceRefused implements Exception {
 
 /// The REST surface as a PROGRAM of its own, and the second of the surface's two doors.
 ///
-/// **WHY THIS TYPE EXISTS, AND WHAT IT IS THE ANSWER TO.** The resident door used to be a FLAG:
-/// `serve --listen <address>` — the same word that serves one SSH session, switched into a service
-/// by an option. Two things a machine runs for different reasons, told apart by whether an option
-/// was typed. So a machine could be asked to run the deployment tool and get the service, or asked
-/// for the service and get a tool that reads its own standard input for a connection nobody opened.
+/// **WHY THIS TYPE EXISTS, AND WHAT IT IS THE ANSWER TO.** A resident door that is a FLAG —
+/// `serve --listen <address>`, the same word that serves one SSH session, switched into a service
+/// by an option — is two things a machine runs for different reasons, told apart by whether an
+/// option was typed. A machine can then be asked to run the deployment tool and get the service, or
+/// asked for the service and get a tool that reads its own standard input for a connection nobody
+/// opened.
 /// Here the two are two programs: [program] takes an address and demands a token, [sessionProgram]
 /// takes neither and speaks over the session's own pipes, and neither can turn into the other.
 ///

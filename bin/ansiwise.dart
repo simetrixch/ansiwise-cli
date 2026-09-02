@@ -77,7 +77,7 @@ Future<void> main(List<String> argv) async {
       // The other binary is named here because somebody looking for it types this one first. It is
       // a POINTER and not a second interface: what its programs are called and what they take is
       // stated where they live, and repeating any of it here would be a second help text to keep in
-      // step with a binary this one no longer carries.
+      // step with a binary this one does not carry.
       ..writeln('the REST service is its own binary: ansiwise-rest --help')
       ..writeln()
       ..writeln(parser.usage);

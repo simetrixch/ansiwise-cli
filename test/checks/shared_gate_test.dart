@@ -10,10 +10,10 @@ import 'package:test/test.dart';
 /// resolved before it could run the resolution. Nothing here removes the copy; what it removes is
 /// the copy drifting unwatched.
 ///
-/// **What it caught.** Two copies had already diverged in both directions: one gained the walk that
-/// finds a repository rather than a package — added after a gate printed "every check green" with a
-/// second package's files never analysed — and the other never got it; one carried an example
-/// naming the repository it had been copied out of.
+/// **What drifting costs.** Two copies diverge in both directions: one gains the walk that finds a
+/// repository rather than a package — without which a gate prints "every check green" with a second
+/// package's files never analysed — and the other never gets it; one carries an example naming the
+/// repository it was copied out of.
 ///
 /// **What is not compared, and why that is not a loophole.** The files that DECIDE something differ
 /// between repositories because their subjects differ. Comparing those would be red for ever, which
