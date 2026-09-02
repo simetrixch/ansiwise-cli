@@ -15,6 +15,11 @@
 *.conf    text eol=lf
 *.config  text eol=lf
 *.example text eol=lf
+*.sh      text eol=lf
+# The push hook is named after the moment git calls it, so it carries no extension of its own. A
+# hook checked out with CRLF fails at its shebang with "bad interpreter: /bin/bash^M", and the
+# shebang is the first thing that runs, so that failure names the interpreter rather than the file.
+.githooks/* text eol=lf
 
 # Binary artifacts — never touch line endings.
 *.tgz   binary
