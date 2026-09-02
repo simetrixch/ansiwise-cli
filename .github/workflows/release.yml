@@ -49,11 +49,21 @@ jobs:
   gate:
     name: the gate over every part
     runs-on: ubuntu-latest
+    # THE PRODUCT STANDS IN A DIRECTORY OF ITS OWN, and the parts beside it rather
+    # than inside it. A part checked out UNDER the product's root is inside the
+    # package pub resolves, and pub then answers some dependencies from those
+    # directories and the rest from the commits the manifest names - which is the
+    # mixed composition the gate refuses: a binary half from a working tree and
+    # half from what was pushed. Side by side, every dependency comes from the
+    # cache and the composition is uniform.
+    defaults:
+      run:
+        working-directory: product
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-
+          path: product
       - id: pin
         name: read the pinned Dart version
         shell: bash
@@ -134,9 +144,9 @@ jobs:
               echo "::endgroup::"
             done
           }
-          judge parts/ansiwise-checks
-          judge parts/ansiwise-core
-          judge parts/ansiwise-plugins
+          judge ../parts/ansiwise-checks
+          judge ../parts/ansiwise-core
+          judge ../parts/ansiwise-plugins
 
       - name: dart pub get
         run: dart pub get
