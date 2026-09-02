@@ -99,7 +99,21 @@ sed -i -E "0,/^version:[[:space:]]*\S+/s//version: ${VERSION}/" pubspec.yaml
 grep -qE "^version: ${VERSION}\$" pubspec.yaml \
   || die "the version could not be written into pubspec.yaml. Nothing has been minted or pushed"
 git add -- pubspec.yaml
-git commit --quiet -m "release: $TAG" || die "the version bump could not be committed"
+# A BUMP THAT IS ALREADY THERE IS NOT A FAILURE. A release whose build went red
+# leaves this commit behind: the manifest names the version and the three parts,
+# and only the tag and the pins are missing. Running the release again then finds
+# nothing to commit, and refusing there is refusing the repair — the second run
+# would have to undo the first before it could do anything, which is the shape
+# that sends a person to fix a manifest by hand.
+#
+# WHAT IS COMMITTED IS STILL CHECKED: the lines above wrote the version and the
+# three refs and read them back, so an empty index here means the file already
+# says what this run means it to say.
+if ! git diff --cached --quiet -- pubspec.yaml; then
+  git commit --quiet -m "release: $TAG" || die "the version bump could not be committed"
+else
+  say "the manifest already names $VERSION and these three parts, so there is nothing to commit"
+fi
 git tag "$TAG"
 git push --quiet origin HEAD
 git push --quiet origin "$TAG"

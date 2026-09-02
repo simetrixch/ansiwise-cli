@@ -115,8 +115,22 @@ try {
   [System.IO.File]::WriteAllText((Resolve-Path 'pubspec.yaml'), $manifest)
 
   git add -- pubspec.yaml
-  git commit --quiet -m "release: $tag"
-  if ($LASTEXITCODE -ne 0) { Die 'the version bump could not be committed' }
+  # A BUMP THAT IS ALREADY THERE IS NOT A FAILURE. A release whose build went red
+  # leaves this commit behind: the manifest names the version and the three parts,
+  # and only the tag and the pins are missing. Running the release again then finds
+  # nothing to commit, and refusing there is refusing the repair.
+  #
+  # WHAT IS COMMITTED IS STILL CHECKED: the lines above wrote the version and the
+  # three refs and read them back, so an empty index here means the file already
+  # says what this run means it to say.
+  git diff --cached --quiet -- pubspec.yaml
+  if ($LASTEXITCODE -ne 0) {
+    git commit --quiet -m "release: $tag"
+    if ($LASTEXITCODE -ne 0) { Die 'the version bump could not be committed' }
+  }
+  else {
+    Say "the manifest already names $Version and these three parts, so there is nothing to commit"
+  }
   git tag $tag
   git push --quiet origin HEAD
   git push --quiet origin $tag
