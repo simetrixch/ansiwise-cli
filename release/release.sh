@@ -126,8 +126,13 @@ say "the tag $TAG is on origin — the one build has started"
 # release that has not started.
 state=""
 for _ in $(seq 1 120); do
-  state="$(gh run list --limit 15 --json displayTitle,status,conclusion \
-           -q ".[] | select(.displayTitle | contains(\"${TAG}\")) | .status+\" \"+(.conclusion//\"\")" \
+  # BY headBranch AND NOT BY THE COMMIT TITLE. A tag push names the tag there, and it is the
+  # only field that says which tag a run belongs to. The title is the head commit's message,
+  # which names whatever tag was last committed - so a release that had nothing to commit,
+  # because its manifest already said what it means to say, looks for a run under the previous
+  # tag's name and never finds the one it just started.
+  state="$(gh run list --limit 15 --json headBranch,status,conclusion \
+           -q ".[] | select(.headBranch == \"${TAG}\") | .status+\" \"+(.conclusion//\"\")" \
            | head -1)"
   case "$state" in completed*) break ;; esac
   sleep 20

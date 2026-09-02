@@ -142,8 +142,12 @@ try {
   # exactly that announces a green build for a release that has not started.
   $state = ''
   for ($i = 0; $i -lt 120; $i++) {
-    $state = (gh run list --limit 15 --json displayTitle,status,conclusion `
-        -q ".[] | select(.displayTitle | contains(`"$tag`")) | .status+`" `"+(.conclusion//`"`")" |
+    # BY headBranch AND NOT BY THE COMMIT TITLE. A tag push names the tag there, and it is
+    # the only field that says which tag a run belongs to. The title is the head commit's
+    # message, which names whatever tag was last committed - so a release that had nothing
+    # to commit looks for a run under the previous tag's name and never finds its own.
+    $state = (gh run list --limit 15 --json headBranch,status,conclusion `
+        -q ".[] | select(.headBranch == `"$tag`") | .status+`" `"+(.conclusion//`"`")" |
       Select-Object -First 1)
     if ($state -like 'completed*') { break }
     Start-Sleep -Seconds 20
