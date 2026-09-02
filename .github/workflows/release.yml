@@ -180,10 +180,33 @@ jobs:
       - name: dart pub get
         run: dart pub get
 
+      # THE NAME THE BINARY READS, WHICH IS NOT THE NAME THIS FILE USES. tool/build.dart
+      # stamps the release out of ANSIWISE_RELEASE_TAG and answers `unreleased` where
+      # that is empty - deliberately, so a build on a person's machine says what it is.
+      # A release that names only TAG therefore ships a binary that cannot say which
+      # version it is, and a machine placing it reports the pin it was given against
+      # `unreleased`. TAG stays: the steps below name the assets with it.
       - name: dart run tool/build.dart
         env:
           TAG: ${{ github.ref_name }}
+          ANSIWISE_RELEASE_TAG: ${{ github.ref_name }}
         run: dart run tool/build.dart build/linux-x64
+
+      # ASKED OF THE BINARY ITSELF, because the stamp is compiled in and nothing after
+      # this can correct it. A build that answers anything but its own tag is a build
+      # nobody may attach: the release page would name a version the file denies.
+      - name: every binary answers the tag it was built at
+        shell: bash
+        run: |
+          set -euo pipefail
+          for binary in $BINARIES; do
+            said="$(build/linux-x64/$binary --version)"
+            [ "$said" = "$TAG" ] || {
+              echo "build: FAIL — build/linux-x64/$binary answers \"$said\" and this release is $TAG"
+              exit 1
+            }
+            echo "build: $binary answers $said"
+          done
 
       - name: name every binary as the release attaches it
         shell: bash
