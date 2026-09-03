@@ -70,15 +70,24 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
   # Only the checked-out commit is the one the checks below run against. Any other ref would send
   # commits this run never read.
-  if [ "$local_sha" != "$head_sha" ]; then
+  #
+  # WHAT IS PUSHED IS RESOLVED TO A COMMIT FIRST. An annotated tag hands its own object's sha here,
+  # never the commit it names, so comparing it to HEAD refuses every annotated tag there is -
+  # including the ones a release mints. Resolving it asks the question the refusal below means to
+  # ask: does the tree this ref names match the tree the checks read.
+  local_commit="$(git rev-parse --quiet --verify "${local_sha}^{commit}" 2>/dev/null || printf '%s' "$local_sha")"
+  if [ "$local_commit" != "$head_sha" ]; then
     echo "REFUSED: $local_ref is not the checked-out commit, so its checks did not run."
     echo "Check that ref out, then push it again."
     exit 1
   fi
 
-  # An all-zero remote sha is a ref the remote does not have yet. There is no earlier commit to
-  # measure from, so every commit reachable from the ref is judged. On the first push of an old
-  # repository that is its whole history.
+  # An all-zero remote sha is a ref the remote does not have yet, and reading that as "everything
+  # reachable" judges the whole history - every commit already published, by whatever rule held when
+  # it was written. A TAG is exactly that case: it names a commit the branch already carries, so what
+  # it introduces is nothing at all. Excluding every remote ref this checkout knows asks the question
+  # the loop below means to ask - which commits does this push add - and answers it with none where
+  # none are added.
   case "$remote_sha" in
     *[!0]*) base="$remote_sha" ;;
     *) base="" ;;
@@ -94,7 +103,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   if [ -n "$base" ]; then
     revs="$(git rev-list --no-merges "$base..$local_sha")" || exit 1
   else
-    revs="$(git rev-list --no-merges "$local_sha")" || exit 1
+    revs="$(git rev-list --no-merges "$local_sha" --not --remotes=origin)" || exit 1
   fi
   commits="$commits$revs"$'\n'
 done
