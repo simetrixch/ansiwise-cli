@@ -93,6 +93,23 @@ done
 grep -q 'ref: master' pubspec.yaml \
   && die "a part is still named by a branch rather than a commit. Nothing has been minted or pushed"
 
+# ── the manifest is resolved before anything is minted ──────────────────────
+# THE LAST FORESEEABLE FAILURE, and the one this script used to leave to the build.
+# Each part names its siblings as well, and nothing here moves those: a part that
+# names another at an older commit asks the resolver for one repository at two
+# commits through two paths, which it refuses. The refusal is reported against
+# whichever package it reached first, so it names one nobody edited, and it
+# arrives minutes after a tag is already public. Measured twice in one release on
+# 2026-09-03, each time costing a tag that named nothing and a build that read it.
+#
+# The cost is small where the failure is not: resolving fetches the four trees,
+# and this script has already asked every one of them for its master.
+say 'resolving the parts named above, together, before anything is minted'
+if ! RESOLVED="$(dart pub get 2>&1)"; then
+  echo "$RESOLVED" >&2
+  die 'the parts this release names cannot be resolved together. The lines above are the resolver, and they name the two packages that disagree. Nothing has been minted or pushed'
+fi
+
 # ── mint, which is what starts the one build ─────────────────────────────────
 TAG="${VERSION}-${CHANNEL}-$(date -u +%Y%m%d%H%M%S)"
 sed -i -E "0,/^version:[[:space:]]*\S+/s//version: ${VERSION}/" pubspec.yaml
