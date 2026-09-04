@@ -95,7 +95,7 @@ dev_dependencies:
   ansiwise_checks:
     git:
       url: https://github.com/simetrixch/ansiwise-checks.git
-      ref: fc636784954de23745f7906d57d92980e043c640
+      ref: cbce8776a051e939ea2b0d51ad36c27edc005b0e
       path: registry
   # The tree half by name as well, because this package imports it directly for its own
   # tree-analysis check. Reached transitively through the registry half it would resolve and still
@@ -103,5 +103,5 @@ dev_dependencies:
   ansiwise_checks_tree:
     git:
       url: https://github.com/simetrixch/ansiwise-checks.git
-      ref: fc636784954de23745f7906d57d92980e043c640
+      ref: cbce8776a051e939ea2b0d51ad36c27edc005b0e
       path: tree
