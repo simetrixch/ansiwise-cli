@@ -142,21 +142,40 @@ say "the tag $TAG is on origin — the one build has started"
 # another tag: a script that does exactly that announces a green build for a
 # release that has not started.
 state=""
+run_id=""
 for _ in $(seq 1 120); do
   # BY headBranch AND NOT BY THE COMMIT TITLE. A tag push names the tag there, and it is the
   # only field that says which tag a run belongs to. The title is the head commit's message,
   # which names whatever tag was last committed - so a release that had nothing to commit,
   # because its manifest already said what it means to say, looks for a run under the previous
   # tag's name and never finds the one it just started.
-  state="$(gh run list --limit 15 --json headBranch,status,conclusion \
-           -q ".[] | select(.headBranch == \"${TAG}\") | .status+\" \"+(.conclusion//\"\")" \
+  #
+  # THE RUN'S NUMBER IS TAKEN WITH ITS STATE, in one reading rather than a second one afterwards.
+  # A later listing can answer about a different run, and the number is what the log below is
+  # asked for by.
+  found="$(gh run list --limit 15 --json headBranch,status,conclusion,databaseId \
+           -q ".[] | select(.headBranch == \"${TAG}\") | .status+\" \"+(.conclusion//\"\")+\" \"+(.databaseId|tostring)" \
            | head -1)"
+  state="${found% *}"
+  run_id="${found##* }"
   case "$state" in completed*) break ;; esac
   sleep 20
 done
 case "$state" in
   "completed success") say "the build of $TAG is green" ;;
-  *) die "the build of $TAG did not finish green (${state:-it never appeared}) — the tag stands, and the pins are NOT written" ;;
+  *)
+    # THE REASON IS PRINTED HERE, not left to a command somebody is told to run next. Whoever reads
+    # this failure is standing at a terminal with the credential already in hand, and a release that
+    # sends them one round trip away for the cause has answered nothing. The FAILED STEPS are what
+    # the build refused on; the whole log is thousands of lines of green and buries them.
+    if [ -n "$run_id" ]; then
+      printf '%s\n' "----- the failed steps of run $run_id -----" >&2
+      gh run view "$run_id" --log-failed 2>&1 | tail -120 >&2 \
+        || printf '%s\n' "the log of run $run_id could not be read" >&2
+      printf '%s\n' "----- end of run $run_id -----" >&2
+    fi
+    die "the build of $TAG did not finish green (${state:-it never appeared}) — the tag stands, and the pins are NOT written"
+    ;;
 esac
 
 assets="$(gh release view "$TAG" --json assets -q '[.assets[].name]|join(", ")' 2>/dev/null || true)"

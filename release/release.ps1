@@ -159,18 +159,40 @@ try {
   # release's, and reading it reports a verdict that belongs to another tag: a script that does
   # exactly that announces a green build for a release that has not started.
   $state = ''
+  $runId = ''
   for ($i = 0; $i -lt 120; $i++) {
     # BY headBranch AND NOT BY THE COMMIT TITLE. A tag push names the tag there, and it is
     # the only field that says which tag a run belongs to. The title is the head commit's
     # message, which names whatever tag was last committed - so a release that had nothing
     # to commit looks for a run under the previous tag's name and never finds its own.
-    $state = (gh run list --limit 15 --json headBranch,status,conclusion `
-        -q ".[] | select(.headBranch == `"$tag`") | .status+`" `"+(.conclusion//`"`")" |
+    #
+    # THE RUN'S NUMBER IS TAKEN WITH ITS STATE, in one reading rather than a second one
+    # afterwards. A later listing can answer about a different run, and the number is what
+    # the log below is asked for by.
+    $found = (gh run list --limit 15 --json headBranch,status,conclusion,databaseId `
+        -q ".[] | select(.headBranch == `"$tag`") | .status+`" `"+(.conclusion//`"`")+`" `"+(.databaseId|tostring)" |
       Select-Object -First 1)
+    if ($found) {
+      $parts = $found -split ' '
+      $runId = $parts[-1]
+      $state = ($parts[0..($parts.Count - 2)] -join ' ')
+    }
     if ($state -like 'completed*') { break }
     Start-Sleep -Seconds 20
   }
   if ($state -ne 'completed success') {
+    # THE REASON IS PRINTED HERE, not left to a command somebody is told to run next. Whoever
+    # reads this failure is standing at a terminal with the credential already in hand, and a
+    # release that sends them one round trip away for the cause has answered nothing. The
+    # FAILED STEPS are what the build refused on; the whole log is thousands of lines of green
+    # and buries them.
+    if ($runId) {
+      [Console]::Error.WriteLine("----- the failed steps of run $runId -----")
+      $log = (gh run view $runId --log-failed 2>&1 | Select-Object -Last 120)
+      if ($log) { $log | ForEach-Object { [Console]::Error.WriteLine($_) } }
+      else { [Console]::Error.WriteLine("the log of run $runId could not be read") }
+      [Console]::Error.WriteLine("----- end of run $runId -----")
+    }
     $said = if ($state) { $state } else { 'it never appeared' }
     Die "the build of $tag did not finish green ($said) — the tag stands, and the pins are NOT written"
   }
