@@ -101,10 +101,12 @@ subcommands-start: test/checks/subcommands_start_test.dart
 # that goes to standard error and nowhere else is a refusal nobody reads — a run over
 # `ansiwise-rest serve` is a detached child whose standard error is a pipe nobody reads, so the
 # caller is left with an absence: "accepted but never wrote its record", diagnosable only by
-# running the child by hand with the same envelope. This holds both halves: that a run given
-# an identifier records its reason beside the records and a run given none does not, and that nothing
+# running the child by hand with the same envelope. This holds three things: that a run given
+# an identifier records its reason beside the records and a run given none does not, that nothing
 # else in the binary says something and then ends the run — because a refusal that skips the
-# recording is a refusal nobody can read.
+# recording is a refusal nobody can read — and that the serving binary READS it back, answering
+# GET /runs/{id} for a run that left a reason with that reason instead of with the same 404 an
+# identifier nobody issued gets.
 startup-reason: test/checks/startup_reason_test.dart
 
 # What a run that says it hands over no password may promise, held against what the engine does with

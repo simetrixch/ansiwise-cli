@@ -78,6 +78,7 @@ void main() {
         gate: Gate(store),
         json: const PlainRecordJson(),
         commit: () async => 'abc1234',
+        startupReason: nothingRefusedAtStartup,
       ),
       events: EventsEndpoint(store: store, json: const PlainRecordJson()),
     );
@@ -173,6 +174,7 @@ void main() {
           gate: const Gate(store),
           json: const PlainRecordJson(),
           commit: () async => 'abc1234',
+          startupReason: nothingRefusedAtStartup,
         ),
         events: const EventsEndpoint(store: store, json: PlainRecordJson()),
       );
@@ -237,6 +239,7 @@ void main() {
           gate: const Gate(store),
           json: const PlainRecordJson(),
           commit: () async => 'abc1234',
+          startupReason: nothingRefusedAtStartup,
         ),
         events: const EventsEndpoint(store: store, json: PlainRecordJson()),
       );
@@ -269,6 +272,7 @@ void main() {
           gate: const Gate(store),
           json: const PlainRecordJson(),
           commit: () async => 'abc1234',
+          startupReason: nothingRefusedAtStartup,
         ),
         events: const EventsEndpoint(store: store, json: PlainRecordJson()),
       );
@@ -292,6 +296,7 @@ void main() {
           gate: const Gate(store),
           json: const PlainRecordJson(),
           commit: () async => 'abc1234',
+          startupReason: nothingRefusedAtStartup,
         ),
         events: const EventsEndpoint(store: store, json: PlainRecordJson()),
       );
@@ -351,6 +356,7 @@ void main() {
             gate: const Gate(store),
             json: const PlainRecordJson(),
             commit: () async => 'abc1234',
+            startupReason: nothingRefusedAtStartup,
           ),
           events: const EventsEndpoint(store: store, json: PlainRecordJson()),
         ),

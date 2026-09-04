@@ -102,6 +102,13 @@ final class RecordingLauncher implements RunLauncher {
   }
 }
 
+/// A run root in which no run ever refused before its first step.
+///
+/// What every case that is not about that absence is given, so the answer for an identifier nobody
+/// issued is reached in a test the way it is reached on a machine: by asking, and being told there
+/// is nothing.
+Future<String?> nothingRefusedAtStartup(RunId id) async => null;
+
 /// A minimal wire format, so an API test asserts on the API and not on a codec.
 final class PlainRecordJson implements RecordJson {
   const PlainRecordJson();

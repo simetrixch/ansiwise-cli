@@ -13,17 +13,24 @@
 /// There is no serve log. Such a defect is diagnosable only by running the child BY HAND with the
 /// same envelope, because the machine keeps its own words to itself.
 ///
-/// TWO THINGS ARE HELD, and they are different in kind. The first is behaviour: a run given an
+/// THREE THINGS ARE HELD, and they are different in kind. The first is behaviour: a run given an
 /// identifier writes its reason beside the records, and a run given none does not. The second is
 /// STRUCTURAL: no other place in this binary may write to standard error and then end the run,
-/// because a refusal that skips StartupReason.refuse is a refusal nobody can read.
+/// because a refusal that skips StartupReason.refuse is a refusal nobody can read. The third is the
+/// READING, which is the half the sentence above is written for: the serving binary answers
+/// `GET /runs/{id}` for a run that left a reason with that reason, and a reason nobody reads back is
+/// the same absence it replaced.
 library;
 
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:ansiwise_checks_tree/ansiwise_checks_tree.dart';
 import 'package:ansiwise_core/ansiwise_core.dart';
 import 'package:test/test.dart';
+
+/// How a line of a hand-built request ends on the wire.
+const String crlf = '\r\n';
 
 void main() {
   late Directory runs;
@@ -136,4 +143,92 @@ void main() {
           'cannot see standard error is told only that nothing was written. Use StartupReason.refuse',
     );
   });
+
+  // THE READING HALF, over the door the reason exists for. A run that died before its first step
+  // and an identifier nobody ever issued were one 404 with one sentence, so a caller holding an id
+  // it had just been handed at `202` could do nothing but wait out its own clock: measured on apps6
+  // on 2026-09-04, three declared answers missing, all three on disk beside the runs, 180 seconds
+  // spent before the caller reported it could not tell a slow run from a dead one.
+  //
+  // SKIPPED WHERE THERE IS NO INSTALLATION TO READ, printed rather than passed over: the serving
+  // binary composes itself from an installation's configuration, and a clone of this repository
+  // standing alone has none.
+  if (!installationIsFindable) {
+    test('the door reads the reason back', () {}, skip: installationNotFound);
+    return;
+  }
+
+  test('the door hands back what a run that never started said, and only for that run', () async {
+    const RunId refused = RunId('20260903T234009Z-547069-7b5dc756');
+    const RunId neverIssued = RunId('20260903T234009Z-000000-deadbeef');
+    const String said = 'regenerate-branch: needs the answer "build_platform_repo_write_pat"';
+    File(RunDirectory(runs.path).startupLog(refused)).writeAsStringSync('$said\n');
+
+    final Process session = await Process.start('dart', <String>[
+      'run',
+      'bin/ansiwise_rest.dart',
+      'serve',
+      '--programs',
+      '$installationRoot/$installationPrograms',
+      '--config',
+      '$installationRoot/ansiwise.yaml',
+      // THE RUN ROOT THE PLANTED REASON STANDS IN. The door has to read refusals out of the same
+      // root it answers records from, and this is where that is decided for the whole process.
+      '--runs',
+      runs.path,
+    ], workingDirectory: Directory.current.path);
+
+    final StringBuffer complained = StringBuffer();
+    session.stderr.transform(utf8.decoder).listen(complained.write);
+    final Future<String> answered = utf8.decodeStream(session.stdout);
+    try {
+      // BOTH ASKS DOWN ONE CHANNEL, which is what a session is: `serve` speaks over the pipes of
+      // the session it was started in, and there is no second connection to be had.
+      for (final RunId asked in <RunId>[refused, neverIssued]) {
+        session.stdin.write('GET /runs/${asked.value} HTTP/1.1$crlf');
+        session.stdin.write('Host: m$crlf');
+        session.stdin.write(crlf);
+      }
+      await session.stdin.flush();
+      // The channel closes the way a session closes, and that is also what ends the process.
+      await Future<void>.delayed(const Duration(seconds: 3));
+      await session.stdin.close();
+
+      final String door = await answered.timeout(
+        const Duration(seconds: 110),
+        onTimeout: () => fail('the door never answered\nstderr so far:\n$complained'),
+      );
+      expect(
+        'HTTP/1.1 404'.allMatches(door),
+        hasLength(2),
+        reason: 'both asks are about a run with no record, and both are answered:\n$door',
+      );
+      expect(
+        door,
+        contains(onTheWire(said)),
+        reason:
+            'the words the child wrote did not reach the caller, so the answer is the absence this '
+            'exists to replace:\n$door',
+      );
+      expect(
+        door,
+        contains(onTheWire('no run is called "${neverIssued.value}"')),
+        reason:
+            'an identifier nobody issued must keep the answer it has always had — a door that said '
+            'the same thing about both has removed nothing:\n$door',
+      );
+    } finally {
+      session.kill();
+    }
+  }, timeout: const Timeout(Duration(minutes: 3)));
+}
+
+/// [text] as it stands inside the JSON the door answers with.
+///
+/// A refusal crosses the wire as `{"refused": "..."}`, so the quotes a child wrote arrive as `\"`
+/// and a line break as `\n`. A test looking for the raw sentence would be looking for something no
+/// correct answer can contain.
+String onTheWire(String text) {
+  final String encoded = jsonEncode(text);
+  return encoded.substring(1, encoded.length - 1);
 }

@@ -70,6 +70,7 @@ void main() {
           gate: Gate(store, requireDryRun: requireDryRun),
           json: const PlainRecordJson(),
           commit: () async => commit,
+          startupReason: nothingRefusedAtStartup,
         ),
         events: EventsEndpoint(store: store, json: const PlainRecordJson()),
       ),

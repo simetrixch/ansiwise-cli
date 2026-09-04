@@ -17,6 +17,7 @@ final class RunsEndpoint {
     required this.gate,
     required this.json,
     required this.commit,
+    required this.startupReason,
   });
 
   /// Where past and present runs are read from.
@@ -43,6 +44,21 @@ final class RunsEndpoint {
   /// "starts and dies where nobody is watching" this endpoint exists to prevent.
   final Future<String> Function() commit;
 
+  /// What a run that never wrote a header said when it refused, or null where it left nothing.
+  ///
+  /// **ASKED ONLY WHERE THERE IS NO RECORD, and that is the one ambiguity it removes.** This door
+  /// answers `202` with an identifier as soon as the child is spawned, and the child writes its
+  /// first header much later — after it has parsed the catalogue, measured the program's answer
+  /// conditions against the machine and run its own gate. Until then there is no record, so a run
+  /// that DIED before its first step and an identifier nobody ever issued are one answer, and a
+  /// caller waiting on the first has nothing but a clock to decide with. A child that refuses
+  /// records why beside the runs under a name derived from that identifier, and this reads it.
+  ///
+  /// **IT DOES NOT MAKE A SLOW RUN LEGIBLE, and nothing here can.** A run that is merely still
+  /// starting has written no record and no reason either, so it stays the plain 404 a caller's own
+  /// wait is for. What this separates out is the run that is already gone.
+  final Future<String?> Function(RunId) startupReason;
+
   /// `GET /runs` — past runs, newest first.
   Future<ApiResponse> list(ApiRequest request) async {
     final String? programName = request.query('program');
@@ -64,9 +80,19 @@ final class RunsEndpoint {
   }
 
   /// `GET /runs/{id}` — one run, with a row per step.
+  ///
+  /// TWO ABSENCES AND TWO ANSWERS. Both are 404, because in neither case is there a run to open;
+  /// what differs is the reason, which is the field a caller acts on. A run that refused before its
+  /// first step says so with the words the child wrote, and everything else stays the answer an
+  /// identifier nobody issued has always got.
   Future<ApiResponse> one(RunId id) async {
     final RunRecord? run = await store.read(id);
     if (run == null) {
+      if (await startupReason(id) case final String said) {
+        return Refused.notFound(
+          'run "$id" refused before its first step, so it has no record:\n$said',
+        );
+      }
       return Refused.notFound('no run is called "$id"');
     }
     return Answered(json.run(run));

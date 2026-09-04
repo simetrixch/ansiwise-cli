@@ -147,6 +147,7 @@ void main() {
         gate: Gate(MemoryRunStore()),
         json: const PlainRecordJson(),
         commit: () async => 'abc1234',
+        startupReason: nothingRefusedAtStartup,
       ),
       events: EventsEndpoint(store: MemoryRunStore(), json: const PlainRecordJson()),
     );

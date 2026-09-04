@@ -210,6 +210,10 @@ DeploymentApi _surface({
     gate: Gate(store, requireDryRun: requireDryRun),
     json: const RecordCodec(),
     commit: () => commitOf(machine),
+    // FROM THE STORE'S OWN DIRECTORY, so the door reads refusals out of the run root it answers
+    // records from. Told a root of its own it would look for the reason of a run beside a different
+    // machine's records, and answer that a run it had just accepted was never started.
+    startupReason: (RunId id) => startupReasonOf(store.directory, id),
   ),
   events: EventsEndpoint(store: store, json: const RecordCodec()),
 );

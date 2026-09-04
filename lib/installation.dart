@@ -521,6 +521,33 @@ final class StartupReason {
   }
 }
 
+/// What run [id] said when it refused before its first step, or null where it left nothing.
+///
+/// **THE READER OF WHAT [StartupReason] WRITES, and the surface is the one caller there is.** A run
+/// started over the REST surface is accepted with a `202` and its identifier the moment the child is
+/// spawned, and the child writes its header much later. Between the two, `GET /runs/{id}` finds no
+/// record — and a run that DIED before its first step and an identifier nobody ever issued are then
+/// the same absence, so a caller holding an id it was just handed can do nothing but wait out its
+/// own clock. Measured on apps6 on 2026-09-04: three answers a program declares were not given, the
+/// child wrote all three to `<id>.startup.log`, and the caller polled for 180 seconds and reported
+/// that it cannot tell whether the run is still starting or is gone.
+///
+/// **IT READS BESIDE THE RUNS AND NOT INSIDE ONE.** The run has no directory — never making one is
+/// the failure — so the file stands in the run root under a name derived from the id, which is what
+/// makes it readable from the id alone.
+///
+/// **A FILE THAT CANNOT BE READ ANSWERS AS AN ABSENT ONE**, which is the mirror of the writer's rule
+/// that a file that cannot be written changes nothing. What the caller then gets is the answer it
+/// got before this existed, rather than a failure in place of an answer.
+Future<String?> startupReasonOf(RunDirectory directory, RunId id) async {
+  final File said = File(directory.startupLog(id));
+  try {
+    return await said.exists() ? (await said.readAsString()).trim() : null;
+  } on FileSystemException {
+    return null;
+  }
+}
+
 /// The commit this installation's branch is on, which is part of what makes an input the same.
 ///
 /// Empty when this is not a checkout — a machine that was given a built binary and no repository
