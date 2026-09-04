@@ -65,7 +65,11 @@ final class ProgramsEndpoint {
     return <String, Object?>{
       'step': resolved.entry.step.value,
       'source': resolved.registered.source,
-      'on_failure': resolved.entry.onFailure.name,
+      // The word a program file spells, not the Dart member's identifier. `OnFailure.continueRun`
+      // is called that only because `continue` is a reserved word, and `.name` here would put
+      // `continueRun` on the wire — a word that stands in no program file and that no caller can
+      // match against one.
+      'on_failure': writtenFor(resolved.entry.onFailure),
       'when': <String>[
         for (final RegisteredPredicate predicate in resolved.when) predicate.name.value,
       ],

@@ -97,7 +97,18 @@ void main() {
       final Map<String, Object?> body = await get(build().api, '/programs/deploy-cluster');
       final Map<String, Object?> step = objectAt(listAt(body, 'steps'), 0);
       expect(step['source'], 'deployment/lib/steps/writes_a_file.dart:12');
-      expect(step['on_failure'], 'exit');
+    });
+
+    test('a step carries the failure policy in the words a program file spells', () async {
+      // BOTH ROWS, because only one of the two can go wrong here. `OnFailure.exit` and the word
+      // `exit` are the same string, so writing the Dart member's identifier passes on that row and
+      // puts `continueRun` on the wire on the other — a word no program file carries and no caller
+      // can match. The continuing row is what makes this check able to go red.
+      final Map<String, Object?> body = await get(build().api, '/programs/deploy-cluster');
+      final List<Object?> steps = listAt(body, 'steps');
+
+      expect(objectAt(steps, 0)['on_failure'], 'exit');
+      expect(objectAt(steps, 1)['on_failure'], 'continue');
     });
 
     test('a step says whether it can be taken back, and why not when it cannot', () async {
