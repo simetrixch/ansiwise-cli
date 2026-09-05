@@ -79,7 +79,7 @@ Future<void> main() async {
     return ProcessResult(child.pid, await child.exitCode, await out, await err);
   }
 
-  /// The serving binary, which carries `serve` and the resident door.
+  /// The serving binary, whose one program is `serve`.
   Future<ProcessResult> ansiwiseRest(List<String> arguments, {String? stdinText}) =>
       started('bin/ansiwise_rest.dart', arguments, stdinText: stdinText);
 

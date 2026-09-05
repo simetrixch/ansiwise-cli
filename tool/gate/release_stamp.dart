@@ -15,11 +15,10 @@
 /// [unreleased], which is deliberately not shaped like a version — a developer's binary must not be
 /// mistakable for a released one by anything reading its answer.
 ///
-/// **IT IS A GENERATED SOURCE FILE and not a `--define`, for the reason `lib/plugins.dart` and
-/// `lib/service_unit.dart` are: the compiler reads source, `tool/build.dart` already writes both of
-/// those before it compiles anything, and a third mechanism beside them would be a second answer to
-/// "what does the compiler see". Nothing in `lib/` may import `tool/`, so the value crosses that
-/// line as the one thing it can: a constant.
+/// **IT IS A GENERATED SOURCE FILE and not a `--define`, for the reason `lib/plugins.dart` is: the
+/// compiler reads source, `tool/build.dart` already writes that one before it compiles anything, and
+/// a third mechanism beside them would be a second answer to "what does the compiler see". Nothing
+/// in `lib/` may import `tool/`, so the value crosses that line as the one thing it can: a constant.
 library;
 
 import 'dart:io';

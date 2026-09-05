@@ -114,8 +114,8 @@ Future<void> main(List<String> argv) async {
       elevationSource: installation.elevationSource,
       // Whether the caller says the absence of a password is what it meant, rather than something
       // it forgot. Read here and not in the composition root because the serving binary shares that
-      // root and carries no such option: `install-service` writes files that belong to root on
-      // every installation there is, so nothing may excuse it a password.
+      // root and carries no such option: its one program starts no command of its own, and every
+      // run it accepts is a detached child of THIS binary that reads the option for itself.
       withoutElevationPassword: options.flag('without-elevation-password'),
       // Handed on so the answer conditions can be measured before the answers are checked.
       registry: installation.registry,

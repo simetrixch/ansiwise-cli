@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'api_message.dart';
-import 'service_token_file.dart';
-import 'service_token_gate.dart';
 import 'deployment_api.dart';
 // Only the socket, by name: this file speaks dart:io's HttpRequest, and the framework has a port
 // of its own under that name. Importing the whole library would shadow one with the other, and
@@ -13,14 +11,16 @@ import 'package:ansiwise_core/ansiwise_core.dart' show ChannelServerSocket, Chan
 
 /// Serves the REST surface over one channel, and returns when the channel closes.
 ///
-/// This is one of the two places in the package that know the API is reached over HTTP at all — the
-/// other is [ListeningHttpServer], which serves the same surface on an address. Everything above
-/// them takes an [ApiRequest] and answers with an [ApiResponse]; this turns one into the other and
-/// writes the bytes.
+/// This is the one place in the package that knows the API is reached over HTTP at all. Everything
+/// above it takes an [ApiRequest] and answers with an [ApiResponse]; this turns one into the other
+/// and writes the bytes.
 ///
 /// Nothing listens. `HttpServer.listenOn` is given a [ChannelServerSocket] holding the session's own
 /// standard input and output, so there is no port to open, nothing to authenticate a second time,
-/// and no process left when the session ends.
+/// and no process left when the session ends. NOTHING HERE READS A CREDENTIAL, and it is the
+/// composition that says so rather than a flag: sshd is the whole authentication of a session, and
+/// a surface that demanded one here could not be reached on a machine that has none yet — which is
+/// every machine at its first installation.
 final class ChannelHttpServer {
   /// Serves [api] over the bytes of [incoming] and [outgoing].
   const ChannelHttpServer(this.api, {required this.incoming, required this.outgoing});
@@ -40,117 +40,8 @@ final class ChannelHttpServer {
     final HttpServer server = HttpServer.listenOn(
       ChannelServerSocket(ChannelSocket(incoming: incoming, outgoing: outgoing)),
     );
-    // NO TOKEN AT THIS DOOR, and it is the composition that says so rather than a flag: sshd is the
-    // whole authentication of a session, and a surface that demanded a token here could not be
-    // reached on a machine that has none yet — which is every machine at its first installation.
-    await _answerAll(server, (ApiRequest request, String? _) => api.call(request));
+    await _answerAll(server, api.call);
   }
-}
-
-/// Serves the same surface on an address, for callers that do not open a session.
-///
-/// This is the resident form. [ChannelHttpServer] serves one caller for the life of one session; a
-/// machine that has been installed also runs the surface as a service on an address, so a manager
-/// can start a run, crash, and come back to `GET /runs/{id}` without anyone holding an SSH session
-/// open the whole time.
-///
-/// **The channel form is not replaced by this, and cannot be.** The first installation of a machine
-/// happens before any service exists to listen: the operator app opens an SSH session, starts
-/// `serve` inside it, and speaks HTTP over the session's own pipes — no port to have been opened,
-/// no service to have been installed first. That path stays exactly as it is, and this one is what
-/// an installed machine offers beside it.
-///
-/// **The address is an argument, never a constant.** Whether the surface stands on loopback behind
-/// a tunnel, on a private interface, or on a public one is a fact of an installation's network, not
-/// of this code — so there is no default to fall back to, because a default host would be this code
-/// deciding who can reach a machine's deployment surface.
-///
-/// Two shapes are accepted:
-///  * `host:port` — a TCP endpoint. The host may be a name, an IPv4 literal, or an IPv6 literal in
-///    brackets (`[::1]:9953`), and it is required: a bare port would need a default host, and
-///    `0.0.0.0` against `127.0.0.1` is exactly the decision that is not made here.
-///  * `unix:<path>` — a Unix domain socket at that path, for installations that would rather guard
-///    the surface with file permissions than with a port. The prefix is what keeps a socket path
-///    and a host from ever being read as one another.
-final class ListeningHttpServer {
-  /// Serves [api] on [address], to callers holding one of the tokens in [tokens].
-  ///
-  /// [tokens] is required and cannot be null. Nothing here can be configured into serving open: a
-  /// door on an address is reached by whoever can reach the address, and the one that decides who
-  /// that is has to be impossible to forget.
-  const ListeningHttpServer(this.api, {required this.address, required this.tokens});
-
-  /// What answers the requests.
-  final DeploymentApi api;
-
-  /// Where to listen, in one of the two shapes above.
-  final String address;
-
-  /// The file holding what every caller on this address must present. Read again for every request,
-  /// so a token can be placed or retired under a service that keeps answering.
-  final ServiceTokenFile tokens;
-
-  /// Binds [address] and answers requests until the server is closed.
-  ///
-  /// [onBound] is told the bound server once it stands. That is how whoever started this learns
-  /// what was actually bound — which matters when the address asked for port `0` and the operating
-  /// system chose the real one — and how it is stopped: `HttpServer.close` ends the stream of
-  /// requests, and this returns once every answer still in flight has been written.
-  ///
-  /// Throws [FormatException] when [address] is neither of the accepted shapes, and
-  /// [SocketException] when it cannot be bound — both before a single request is read, so a
-  /// service with a wrong address fails at start where an operator is looking, not at the first
-  /// request when nobody is.
-  ///
-  /// THE TOKENS ARE READ BEFORE THE BIND, and a file that is missing, holds none, or holds a line
-  /// that is not a token throws here — [FileSystemException] or [StateError], the only two, both
-  /// before anything is bound. A machine whose token
-  /// was never placed refuses to start rather than standing on an address while nothing guards it,
-  /// and this is the server's own guarantee rather than something a composition root has to
-  /// remember. What the file says afterwards is asked for per request, not held.
-  Future<void> serve({void Function(HttpServer bound)? onBound}) async {
-    await tokens.read();
-    final HttpServer server = await _bind(address);
-    onBound?.call(server);
-    final ServiceTokenGate gate = ServiceTokenGate(api.call, accepted: tokens.accepted);
-    await _answerAll(
-      server,
-      (ApiRequest request, String? presented) => gate.call(request, authorization: presented),
-    );
-  }
-}
-
-/// Binds whichever of the two address shapes [address] holds.
-Future<HttpServer> _bind(String address) async {
-  if (address.startsWith('unix:')) {
-    final String path = address.substring('unix:'.length);
-    if (path.isEmpty) {
-      throw const FormatException(
-        'unix: names no path — a socket file is asked for as unix:/some/path.sock',
-      );
-    }
-    return HttpServer.listenOn(
-      await ServerSocket.bind(InternetAddress(path, type: InternetAddressType.unix), 0),
-    );
-  }
-
-  final int cut = address.lastIndexOf(':');
-  final int? port = cut < 0 ? null : int.tryParse(address.substring(cut + 1));
-  if (cut < 1 || port == null || port < 0 || port > 65535) {
-    throw FormatException(
-      '"$address" does not name an address to serve on\n'
-      'say host:port — 127.0.0.1:9953, or [::1]:9953 — or unix:<path> for a socket file; the '
-      'host is not optional, because which addresses may reach this surface is the '
-      "installation's decision",
-    );
-  }
-  String host = address.substring(0, cut);
-  if (host.startsWith('[') && host.endsWith(']')) {
-    host = host.substring(1, host.length - 1);
-  } else if (host.contains(':')) {
-    throw FormatException('an IPv6 address is written in brackets: [$host]:$port');
-  }
-  return HttpServer.bind(host, port);
 }
 
 /// Answers every request of [server] until its stream of requests ends, and returns once the
@@ -159,7 +50,7 @@ Future<HttpServer> _bind(String address) async {
 /// CONCURRENTLY, and that is load-bearing. A run being watched is one response held open for as
 /// long as the run takes — an hour, for a deployment — and a loop that answered one request to the
 /// end before reading the next would let that single watcher stop every other caller on the
-/// machine, including the `GET /runs/{id}` a manager asks to find a run again after its own
+/// channel, including the `GET /runs/{id}` a manager asks to find a run again after its own
 /// restart. So each request is dispatched and the next one read; what orders the answers is how
 /// long each takes, and nothing here needs them ordered.
 Future<void> _answerAll(HttpServer server, _Answering answering_) async {
@@ -193,7 +84,6 @@ Future<void> _answer(_Answering answering, HttpRequest request) async {
   try {
     final ApiResponse answer = await answering(
       ApiRequest(request.method, request.uri, body: await utf8.decoder.bind(request).join()),
-      _credentialIn(request),
     );
 
     switch (answer) {
@@ -274,18 +164,5 @@ Future<void> _answer(_Answering answering, HttpRequest request) async {
   }
 }
 
-/// What answers one request: the surface, and what the caller presented as its credential.
-///
-/// A function rather than the surface itself, because the two doors differ in exactly this and in
-/// nothing else — one hands the request straight to the API, the other puts a gate in front of it.
-typedef _Answering = Future<ApiResponse> Function(ApiRequest request, String? authorization);
-
-/// What [request] presented as its credential, or null where it presented none usable.
-///
-/// Read as a LIST and refused unless there is exactly one. `HttpHeaders.value` throws when a header
-/// arrives twice, and a handler that threw on a duplicated header would be a handler an attacker
-/// ends by sending two — so two credentials are no credential, and so is none.
-String? _credentialIn(HttpRequest request) {
-  final List<String>? presented = request.headers[HttpHeaders.authorizationHeader];
-  return presented != null && presented.length == 1 ? presented.single : null;
-}
+/// What answers one request.
+typedef _Answering = Future<ApiResponse> Function(ApiRequest request);

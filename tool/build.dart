@@ -6,7 +6,7 @@
 /// ```
 ///
 /// TWO OF THEM, and a machine carries both. `ansiwise` executes a config flow; `ansiwise-rest`
-/// serves the REST surface and places itself as a service. The second starts a run by invoking the
+/// serves the REST surface over a session's own pipes. The second starts a run by invoking the
 /// first, which it finds standing beside it — so a placement that carried one and not the other
 /// would answer for programs and run none of them.
 ///
@@ -21,7 +21,6 @@ import 'gate/plugin_set.dart';
 import 'gate/paths.dart';
 import 'gate/real_dart_toolchain.dart';
 import 'gate/release_stamp.dart';
-import 'gate/service_unit.dart';
 
 Future<void> main(List<String> arguments) async {
   if (arguments.length > 1) {
@@ -37,13 +36,7 @@ Future<void> main(List<String> arguments) async {
     stdout.writeln('wrote lib/plugins.dart from plugins.yaml');
   }
 
-  // The unit the binary places on a machine, for the same reason and at the same moment: it is
-  // carried inside the executable, so the compiler has to see it before it compiles anything.
-  if (writeServiceUnitSource(package)) {
-    stdout.writeln('wrote lib/service_unit.dart from $serviceUnitFileName');
-  }
-
-  // The third generated source, and the last thing written before the compiler runs. A binary that
+  // The second generated source, and the last thing written before the compiler runs. A binary that
   // cannot say which version it is leaves every reader parsing a filename for one — see
   // tool/gate/release_stamp.dart.
   final String stamp;

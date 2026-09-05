@@ -561,15 +561,10 @@ Future<String> commitOf(Machine machine) async {
 
 /// Why nothing here can raise a command to root, or null where something can.
 ///
-/// One wording for both callers. An installation that named the caller's route and was handed
-/// nothing is the same state whether a run or an installation of the service met it, and two
-/// wordings of it are two things to keep in step.
-///
-/// **IT ANSWERS WHETHER ROOT IS REACHABLE, NEVER WHETHER IT IS NEEDED**, and the two callers differ
-/// in exactly that. `install-service` knows it needs root — every file it places belongs to root —
-/// so this answer is its refusal on its own. A RUN does not know: elevation is chosen per call
-/// inside a step, and neither the registry entry nor the row says it, so a run treats this as need
-/// unless whoever started it says the silence was meant.
+/// **IT ANSWERS WHETHER ROOT IS REACHABLE, NEVER WHETHER IT IS NEEDED**, and that is why the caller
+/// decides what to do with it. A run does not know whether it needs root: elevation is chosen per
+/// call inside a step, and neither the registry entry nor the row says it, so a run treats this as
+/// need unless whoever started it says the silence was meant.
 String? elevationRefusal(ElevationSource? source, Elevation elevation) {
   if (source is! ElevationFromCaller || elevation.password != null) {
     return null;
