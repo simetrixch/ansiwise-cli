@@ -44,7 +44,14 @@ try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catc
 # second time, wrapped in a stack frame. Written to standard error it is the one sentence the bash
 # twin also prints, and `exit` from inside the try is not catchable — the finally still runs, so the
 # temporary directory is still removed.
-function Die([string] $Message) { [Console]::Error.WriteLine("release: $Message"); exit 1 }
+#
+# WHAT STANDS IS ONE SENTENCE, RE-SET WHERE THE WORLD CHANGES AND NEVER WRITTEN OUT PER REFUSAL.
+# Every refusal ends with it, so a refusal cannot carry a clause that is no longer true: a tag push
+# failing after the commit push succeeded, or a catalog pin failing after the platform pin is
+# already on its remote. It is re-set at the three points below where a push has been shown to have
+# landed, and nowhere else.
+$standing = '. Nothing has been minted or pushed'
+function Die([string] $Message) { [Console]::Error.WriteLine("release: $Message$standing"); exit 1 }
 function Say([string] $Message) { Write-Host "release: $Message" }
 
 if (-not $Version -or -not $Channel) {
@@ -57,7 +64,11 @@ if ($Channel -notin @('stable', 'beta', 'alpha')) {
   Die "channel must be stable|beta|alpha (got '$Channel')"
 }
 
-Set-Location (git rev-parse --show-toplevel)
+$top = (git rev-parse --show-toplevel 2>$null)
+if ($LASTEXITCODE -ne 0 -or -not $top) {
+  Die 'this is not a git working copy, and a release is cut from the root of one'
+}
+Set-Location $top
 # THE SECOND HALF OF THAT MOVE, and the whole of ansiwise-cli#15. A PowerShell process carries TWO
 # current directories: its own location, which the line above moves and which every cmdlet and every
 # child process is answered from, and [Environment]::CurrentDirectory, which .NET resolves every
@@ -75,11 +86,11 @@ Set-Location (git rev-parse --show-toplevel)
 
 # ── everything this release will need, before it mints anything ──────────────
 if (git status --porcelain) {
-  Die 'the worktree is dirty — commit or stash first. Nothing has been minted or pushed'
+  Die 'the worktree is dirty — commit or stash first'
 }
 foreach ($tool in @('git', 'gh')) {
   if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
-    Die "$tool is not on this path and this release needs it. Nothing has been minted or pushed"
+    Die "$tool is not on this path and this release needs it"
   }
 }
 
@@ -90,19 +101,16 @@ $catalogPin = 'ansiwise/programs/deploy-cluster.yaml'
 
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $work | Out-Null
-# Whether the tag is public yet, which is the one thing the catch below cannot work out for itself
-# and the only thing that changes what it may promise.
-$minted = $false
 try {
   foreach ($pair in @(@{ Repo = $platformRepo; At = 'platform' }, @{ Repo = $catalogRepo; At = 'catalog' })) {
     git clone --quiet "https://github.com/$($pair.Repo).git" (Join-Path $work $pair.At)
     if ($LASTEXITCODE -ne 0) {
-      Die "$($pair.Repo) could not be cloned, so this release could not write its pin. Nothing has been minted or pushed"
+      Die "$($pair.Repo) could not be cloned, so this release could not write its pin"
     }
     $env:GIT_TERMINAL_PROMPT = '0'
     git -C (Join-Path $work $pair.At) push --dry-run --quiet origin HEAD 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
-      Die "this machine may not push to $($pair.Repo), so this release could not write its pin. Nothing has been minted or pushed"
+      Die "this machine may not push to $($pair.Repo), so this release could not write its pin"
     }
   }
   Say 'both trees this release pins are reachable and would accept a push'
@@ -119,7 +127,7 @@ try {
   # overwriting the ansiwise-core ref with a plugins tag.
   foreach ($repo in @('ansiwise-core', 'ansiwise-plugins', 'ansiwise-checks')) {
     $sha = (git ls-remote "https://github.com/simetrixch/$repo.git" refs/heads/master) -split "`t" | Select-Object -First 1
-    if (-not $sha) { Die "$repo has no master to build from. Nothing has been minted or pushed" }
+    if (-not $sha) { Die "$repo has no master to build from" }
 
     $lines = [System.IO.File]::ReadAllLines('pubspec.yaml')
     $inside = $false
@@ -141,10 +149,17 @@ try {
     # about what is on disk — which is the same file named two ways this issue is about, one level
     # down.
     [System.IO.File]::WriteAllText('pubspec.yaml', ($out -join "`n") + "`n")
+    # READ BACK, because the line below reports this part as named at this commit and nothing else
+    # looks. The rewrite matches on the url of the dependency: a manifest that spells that url any
+    # other way is written out unchanged, and the grep under this loop stays quiet, because the ref
+    # a previous release left there is a commit and not `master`.
+    if (-not (Select-String -Path pubspec.yaml -Pattern "ref: $sha" -SimpleMatch -Quiet)) {
+      Die "pubspec.yaml does not name $repo at $sha after the rewrite"
+    }
     Say "  $repo at $($sha.Substring(0,12))"
   }
   if (Select-String -Path pubspec.yaml -Pattern 'ref: master' -Quiet) {
-    Die 'a part is still named by a branch rather than a commit. Nothing has been minted or pushed'
+    Die 'a part is still named by a branch rather than a commit'
   }
 
   # ── the manifest is resolved before anything is minted ────────────────────
@@ -162,7 +177,7 @@ try {
   $resolved = (& dart pub get 2>&1 | Out-String)
   if ($LASTEXITCODE -ne 0) {
     [Console]::Error.WriteLine($resolved)
-    Die 'the parts this release names cannot be resolved together. The lines above are the resolver, and they name the two packages that disagree. Nothing has been minted or pushed'
+    Die 'the parts this release names cannot be resolved together. The lines above are the resolver, and they name the two packages that disagree'
   }
 
   # ── mint, which is what starts the one build ───────────────────────────────
@@ -174,10 +189,11 @@ try {
   # is spelled in some way this pattern does not match is written unchanged and committed under a
   # tag naming a version it does not carry.
   if (-not (Select-String -Path pubspec.yaml -Pattern "^version: $([regex]::Escape($Version))$" -Quiet)) {
-    Die 'the version could not be written into pubspec.yaml. Nothing has been minted or pushed'
+    Die 'the version could not be written into pubspec.yaml'
   }
 
   git add -- pubspec.yaml
+  if ($LASTEXITCODE -ne 0) { Die 'pubspec.yaml could not be staged' }
   # A BUMP THAT IS ALREADY THERE IS NOT A FAILURE. A release whose build went red
   # leaves this commit behind: the manifest names the version and the three parts,
   # and only the tag and the pins are missing. Running the release again then finds
@@ -195,9 +211,23 @@ try {
     Say "the manifest already names $Version and these three parts, so there is nothing to commit"
   }
   git tag $tag
+  if ($LASTEXITCODE -ne 0) { Die "the tag $tag could not be created" }
   git push --quiet origin HEAD
+  if ($LASTEXITCODE -ne 0) { Die 'the release commit could not be pushed to origin' }
+  $standing = '. The release commit is on origin, and no tag is minted'
   git push --quiet origin $tag
-  $minted = $true
+  if ($LASTEXITCODE -ne 0) {
+    Die "the tag $tag could not be pushed to origin, so it exists on this machine only"
+  }
+  # NOTHING IS PINNED BEFORE IT EXISTS. The push is what makes the tag fetchable; the read-back is
+  # what proves it, and it is asked of the REMOTE rather than of this checkout, which already has
+  # the tag whatever the remote thinks. A zero exit from the push above is the weaker fact, and the
+  # forty minutes of waiting that follow this line rest on the stronger one.
+  $onRemote = @(git ls-remote --tags origin "refs/tags/$tag")
+  if ($onRemote.Count -eq 0) {
+    Die "origin does not carry $tag after the push, so a machine could not fetch it"
+  }
+  $standing = " — the tag $tag stands, and no pin is written"
   Say "the tag $tag is on origin — the one build has started"
 
   # ── wait at that build, asked for BY NAME ──────────────────────────────────
@@ -240,7 +270,7 @@ try {
       [Console]::Error.WriteLine("----- end of run $runId -----")
     }
     $said = if ($state) { $state } else { 'it never appeared' }
-    Die "the build of $tag did not finish green ($said) — the tag stands, and the pins are NOT written"
+    Die "the build of $tag did not finish green ($said)"
   }
   Say "the build of $tag is green"
 
@@ -257,7 +287,7 @@ try {
     $next = [regex]::Replace($text, $Pattern, $Replacement)
     [System.IO.File]::WriteAllText($File, $next)
     if ($next -notlike "*$tag*") {
-      Die "$File carries no pin this release could write — the tag stands, and that tree is unchanged"
+      Die "$File carries no pin this release could write"
     }
   }
   $shape = '[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}'
@@ -266,14 +296,23 @@ try {
   git -C (Join-Path $work 'platform') commit --quiet -a `
     -m "Pin the engine at $Version $Channel" `
     -m 'Written by the release of ansiwise-cli, once its binaries were built.'
+  if ($LASTEXITCODE -ne 0) { Die "the pin of $platformRepo could not be committed" }
   git -C (Join-Path $work 'platform') push --quiet origin HEAD
+  if ($LASTEXITCODE -ne 0) {
+    Die "the pin of $platformRepo could not be pushed, so it is a pin only this machine believes"
+  }
+  $standing = " — the tag $tag stands, $platformRepo is pinned, and $catalogRepo is NOT"
   Say "pinned $platformRepo $platformPin"
 
   Write-Pin (Join-Path $work "catalog/$catalogPin") "- ansiwise=$shape" "- ansiwise=$tag"
   git -C (Join-Path $work 'catalog') commit --quiet -a `
     -m "Stamp the ansiwise $Version $Channel pin into the cluster deploy program" `
     -m 'Written by the release of ansiwise-cli, once its binaries were built.'
+  if ($LASTEXITCODE -ne 0) { Die "the pin of $catalogRepo could not be committed" }
   git -C (Join-Path $work 'catalog') push --quiet origin HEAD
+  if ($LASTEXITCODE -ne 0) {
+    Die "the pin of $catalogRepo could not be pushed, so it is a pin only this machine believes"
+  }
   Say "stamped $catalogRepo $catalogPin"
 
   Say "DONE — $tag is built, and every tree that names an engine names this one"
@@ -283,13 +322,7 @@ try {
 # nothing about where it stopped — which is how 0.8.109 ended, and is the promise at the top of this
 # file failing rather than being kept.
 catch {
-  $standing = if ($minted) {
-    " — the tag $tag stands, and the pins are NOT written"
-  }
-  else {
-    '. Nothing has been minted or pushed'
-  }
-  Die "$_$standing"
+  Die "$_"
 }
 finally {
   Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
