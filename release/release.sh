@@ -22,10 +22,32 @@
 #
 # WHY SHELL. The release is not part of the product. It has to run when the
 # product does not build, and it writes into repositories that are not this one.
-set -euo pipefail
+# -E so the trap below is reached from inside a function as well; without it a failure in
+# `name_part` would end this script with no sentence at all.
+set -Eeuo pipefail
 
 die() { echo "release: $*" >&2; exit 1; }
 say() { echo "release: $*"; }
+
+# Whether the tag is public yet, which is the one thing the trap below cannot work out for itself
+# and the only thing that changes what it may promise.
+MINTED=""
+
+# WHAT WAS NEVER FORESEEN STILL ENDS IN A SENTENCE. Every refusal in this script is one it went
+# looking for; this is the rest. Without it an unforeseen failure ends with whatever the failing
+# command said and nothing about where the release stopped — which is the promise at the top of this
+# file failing rather than being kept. The Windows twin's `catch` is this, and says the same words.
+#
+# It fires where `set -e` fires and nowhere else, so a `grep -q ... && die` whose grep finds nothing
+# is left alone, as are every `|| die` and every `if !` below.
+stopped() {
+  local what="${1%%$'\n'*}"   # the first line of it: name_part's whole awk program is not a sentence
+  if [ -n "$MINTED" ]; then
+    die "$what — the tag $TAG stands, and the pins are NOT written"
+  fi
+  die "$what. Nothing has been minted or pushed"
+}
+trap 'stopped "$BASH_COMMAND"' ERR
 
 VERSION="${1:-}"
 CHANNEL="${2:-}"
@@ -134,6 +156,7 @@ fi
 git tag "$TAG"
 git push --quiet origin HEAD
 git push --quiet origin "$TAG"
+MINTED="yes"
 say "the tag $TAG is on origin — the one build has started"
 
 # ── wait at that build, asked for BY NAME ────────────────────────────────────

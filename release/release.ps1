@@ -24,17 +24,32 @@
 .EXAMPLE
   release/release.ps1 0.8.105 stable
 #>
+# NEITHER IS Mandatory, and the usage refusal below is why. A mandatory parameter left out is
+# answered by PowerShell with "missing mandatory parameters: Version Channel" — or, invoked any way
+# but `-File`, with a PROMPT, which is a release script waiting for somebody to type. The bash twin
+# answers a usage line, so this one does too.
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory = $true, Position = 0)][string] $Version,
-  [Parameter(Mandatory = $true, Position = 1)][string] $Channel
+  [Parameter(Position = 0)][string] $Version,
+  [Parameter(Position = 1)][string] $Channel
 )
 
 $ErrorActionPreference = 'Stop'
 
-function Die([string] $Message) { Write-Error "release: $Message"; exit 1 }
+# The refusals below carry an em dash, and both twins have to print it as the same characters.
+try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
+
+# WRITTEN, NOT RAISED. `Write-Error` under $ErrorActionPreference = 'Stop' is itself a terminating
+# error, so every refusal below would be caught by the catch this script now has and reported a
+# second time, wrapped in a stack frame. Written to standard error it is the one sentence the bash
+# twin also prints, and `exit` from inside the try is not catchable — the finally still runs, so the
+# temporary directory is still removed.
+function Die([string] $Message) { [Console]::Error.WriteLine("release: $Message"); exit 1 }
 function Say([string] $Message) { Write-Host "release: $Message" }
 
+if (-not $Version -or -not $Channel) {
+  Die 'usage: release/release.ps1 <x.y.z> <stable|beta|alpha>'
+}
 if ($Version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
   Die "version must be x.y.z with no leading zeros (got '$Version')"
 }
@@ -43,6 +58,20 @@ if ($Channel -notin @('stable', 'beta', 'alpha')) {
 }
 
 Set-Location (git rev-parse --show-toplevel)
+# THE SECOND HALF OF THAT MOVE, and the whole of ansiwise-cli#15. A PowerShell process carries TWO
+# current directories: its own location, which the line above moves and which every cmdlet and every
+# child process is answered from, and [Environment]::CurrentDirectory, which .NET resolves every
+# relative path against and which `Set-Location` does not touch. Left apart, a relative path handed
+# to [System.IO.*] names a file in whatever directory this shell was standing in earlier — and this
+# script reads and rewrites pubspec.yaml. Measured on 2026-09-05 cutting 0.8.109 from a shell whose
+# process directory was a sibling checkout: the read threw. Measured again against a sibling that
+# HAS a pubspec.yaml: the read succeeded, and this repository's manifest was overwritten with that
+# repository's — name, version, every dependency — with nothing said.
+#
+# ONE ASSIGNMENT AND NOT ABSOLUTE PATHS AT EVERY CALL. This is a rule and those are a list: a
+# [System.IO.*] call written into this script later is correct under the assignment and wrong under
+# the list. Nothing below moves either directory again.
+[Environment]::CurrentDirectory = $PWD.ProviderPath
 
 # ── everything this release will need, before it mints anything ──────────────
 if (git status --porcelain) {
@@ -61,6 +90,9 @@ $catalogPin = 'ansiwise/programs/deploy-cluster.yaml'
 
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $work | Out-Null
+# Whether the tag is public yet, which is the one thing the catch below cannot work out for itself
+# and the only thing that changes what it may promise.
+$minted = $false
 try {
   foreach ($pair in @(@{ Repo = $platformRepo; At = 'platform' }, @{ Repo = $catalogRepo; At = 'catalog' })) {
     git clone --quiet "https://github.com/$($pair.Repo).git" (Join-Path $work $pair.At)
@@ -101,7 +133,14 @@ try {
       }
       $out.Add($line)
     }
-    [System.IO.File]::WriteAllLines((Resolve-Path 'pubspec.yaml'), $out)
+    # JOINED WITH LF AND NOT WriteAllLines, which ends every line with Environment.NewLine — CRLF on
+    # the one platform this twin runs on. .gitattributes of this repository says `*.yaml text
+    # eol=lf` for the WORKING COPY, and pubspec.yaml is the only file in the tree that carried
+    # carriage returns: 107 of them, put there by this line, while the bash twin left none. git
+    # normalises them out of the commit, so the two twins agree about what is pushed and disagree
+    # about what is on disk — which is the same file named two ways this issue is about, one level
+    # down.
+    [System.IO.File]::WriteAllText('pubspec.yaml', ($out -join "`n") + "`n")
     Say "  $repo at $($sha.Substring(0,12))"
   }
   if (Select-String -Path pubspec.yaml -Pattern 'ref: master' -Quiet) {
@@ -130,7 +169,13 @@ try {
   $tag = "$Version-$Channel-$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
   $manifest = [System.IO.File]::ReadAllText('pubspec.yaml')
   $manifest = [regex]::Replace($manifest, '(?m)^version:\s*\S+', "version: $Version", 1)
-  [System.IO.File]::WriteAllText((Resolve-Path 'pubspec.yaml'), $manifest)
+  [System.IO.File]::WriteAllText('pubspec.yaml', $manifest)
+  # READ BACK, because what is committed below is not looked at again. A manifest whose version line
+  # is spelled in some way this pattern does not match is written unchanged and committed under a
+  # tag naming a version it does not carry.
+  if (-not (Select-String -Path pubspec.yaml -Pattern "^version: $([regex]::Escape($Version))$" -Quiet)) {
+    Die 'the version could not be written into pubspec.yaml. Nothing has been minted or pushed'
+  }
 
   git add -- pubspec.yaml
   # A BUMP THAT IS ALREADY THERE IS NOT A FAILURE. A release whose build went red
@@ -152,6 +197,7 @@ try {
   git tag $tag
   git push --quiet origin HEAD
   git push --quiet origin $tag
+  $minted = $true
   Say "the tag $tag is on origin — the one build has started"
 
   # ── wait at that build, asked for BY NAME ──────────────────────────────────
@@ -231,6 +277,19 @@ try {
   Say "stamped $catalogRepo $catalogPin"
 
   Say "DONE — $tag is built, and every tree that names an engine names this one"
+}
+# WHAT WAS NEVER FORESEEN STILL ENDS IN A SENTENCE. Every refusal above is one this script went
+# looking for; this is the rest. Without it a throw ends in a .NET stack frame and the release says
+# nothing about where it stopped — which is how 0.8.109 ended, and is the promise at the top of this
+# file failing rather than being kept.
+catch {
+  $standing = if ($minted) {
+    " — the tag $tag stands, and the pins are NOT written"
+  }
+  else {
+    '. Nothing has been minted or pushed'
+  }
+  Die "$_$standing"
 }
 finally {
   Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
