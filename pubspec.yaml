@@ -90,8 +90,7 @@ dev_dependencies:
   path: ^1.9.1
   # The audits the gate's own checks are written against. A DEV dependency and not a dependency:
   # nothing the binary does at run time reaches it, so it must not be compiled in. Reachable only
-  # through the gitignored override, it leaves a clone unable to resolve the suite at all — the same
-  # split composition that ansiwise-plugins#120 is about, one level down.
+  # through the gitignored override, it leaves a clone unable to resolve the suite at all.
   ansiwise_checks:
     git:
       url: https://github.com/simetrixch/ansiwise-checks.git

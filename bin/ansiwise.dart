@@ -201,9 +201,9 @@ Future<int> _runProgram({
   // holding such a row the run-wide condition — this run holds NO password at all — is converted
   // into a per-row note, and the run carries on to the rows after it.
   //
-  // Measured before this was written, on a program of two rows that both read a path belonging to
-  // root, both saying `on_failure: continue`: started with the option, the run walked both, changed
-  // nothing only because those two rows were the whole program, and closed `exit 2  2 proven`.
+  // On a program whose rows all read a path belonging to root under `on_failure: continue`, that
+  // leaves a run which walks every row, changes nothing, and closes with a proven count over rows
+  // that were never raised at all.
   //
   // A ROW'S POLICY IS ABOUT THAT ROW'S OWN FAILURE and was never meant to answer a question about
   // the whole run, so it is not made to. The run is refused here instead, where every row is known

@@ -41,7 +41,7 @@ try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catc
 
 # WRITTEN, NOT RAISED. `Write-Error` under $ErrorActionPreference = 'Stop' is itself a terminating
 # error, so every refusal below would be caught by the catch this script now has and reported a
-# second time, wrapped in a stack frame. Written to standard error it is the one sentence the bash
+# second time, wrapped in a stack frame. Written to standard error, it is the one sentence the bash
 # twin also prints, and `exit` from inside the try is not catchable — the finally still runs, so the
 # temporary directory is still removed.
 #
@@ -69,15 +69,15 @@ if ($LASTEXITCODE -ne 0 -or -not $top) {
   Die 'this is not a git working copy, and a release is cut from the root of one'
 }
 Set-Location $top
-# THE SECOND HALF OF THAT MOVE, and the whole of ansiwise-cli#15. A PowerShell process carries TWO
+# THE SECOND HALF OF THAT MOVE. A PowerShell process carries TWO
 # current directories: its own location, which the line above moves and which every cmdlet and every
 # child process is answered from, and [Environment]::CurrentDirectory, which .NET resolves every
 # relative path against and which `Set-Location` does not touch. Left apart, a relative path handed
 # to [System.IO.*] names a file in whatever directory this shell was standing in earlier — and this
-# script reads and rewrites pubspec.yaml. Measured on 2026-09-05 cutting 0.8.109 from a shell whose
-# process directory was a sibling checkout: the read threw. Measured again against a sibling that
-# HAS a pubspec.yaml: the read succeeded, and this repository's manifest was overwritten with that
-# repository's — name, version, every dependency — with nothing said.
+# script reads and rewrites pubspec.yaml. Cut from a shell whose process directory is a sibling
+# checkout WITHOUT a pubspec.yaml, the read throws; from one that HAS a pubspec.yaml the read
+# succeeds and this repository's manifest is overwritten with that repository's — name, version,
+# every dependency — with nothing said.
 #
 # ONE ASSIGNMENT AND NOT ABSOLUTE PATHS AT EVERY CALL. This is a rule and those are a list: a
 # [System.IO.*] call written into this script later is correct under the assignment and wrong under
@@ -163,13 +163,12 @@ try {
   }
 
   # ── the manifest is resolved before anything is minted ────────────────────
-  # THE LAST FORESEEABLE FAILURE, and the one this script used to leave to the build.
-  # Each part names its siblings as well, and nothing here moves those: a part that
-  # names another at an older commit asks the resolver for one repository at two
-  # commits through two paths, which it refuses. The refusal is reported against
-  # whichever package it reached first, so it names one nobody edited, and it
-  # arrives minutes after a tag is already public. Measured twice in one release on
-  # 2026-09-03, each time costing a tag that named nothing and a build that read it.
+  # THE LAST FORESEEABLE FAILURE, and left to the build it costs a tag that names
+  # nothing and a build that reads it. Each part names its siblings as well, and
+  # nothing here moves those: a part that names another at an older commit asks the
+  # resolver for one repository at two commits through two paths, which it refuses.
+  # The refusal is reported against whichever package it reached first, so it names
+  # one nobody edited, and it arrives minutes after a tag is already public.
   #
   # The cost is small where the failure is not: resolving fetches the four trees,
   # and this script has already asked every one of them for its master.

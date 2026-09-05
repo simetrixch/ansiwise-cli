@@ -17,7 +17,7 @@ import 'package:ansiwise_checks_gate/ansiwise_checks_gate.dart';
 /// both over to a scripted toolchain, because handing an answer over is the only way to show the
 /// build reads it correctly. No `dart compile` is started here and no executable is produced.
 ///
-/// WHAT THIS SUITE DOES NOT PROVE, said rather than left to be assumed: a compiler that exits zero
+/// WHAT THIS SUITE DOES NOT PROVE: a compiler that exits zero
 /// and writes no file is reported as a build that landed. `BinaryBuild.to` decides on the exit code
 /// alone and never looks for the artifact it names, so there is no refusal for a probe to plant.
 /// The module has to gain that look before this suite can carry the shape.

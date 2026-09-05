@@ -1,12 +1,12 @@
 /// The version the compiled binaries answer with, written into `lib/` before anything is compiled.
 ///
-/// **A BINARY THAT CANNOT SAY WHAT IT IS FORCES EVERYBODY ELSE TO GUESS.** Before this, the only
-/// statement about which version stood on a machine was the NAME of the file a symlink pointed at,
-/// and every reader downstream was built on that: a `readlink -f` probe parsing a version back out
-/// of a filename, a sentinel for a file whose version nothing could read, and a hand-composed shell
-/// script to install under the versioned name and link the plain one. `install_pinned_tool` — the
-/// step that already manages argocd, vault and yq — decides its skip on the version and refuses a
-/// tool nothing can ask, so none of them could be managed by it at all.
+/// **A BINARY THAT CANNOT SAY WHAT IT IS FORCES EVERYBODY ELSE TO GUESS.** The only statement left
+/// about which version stands on a machine is then the NAME of the file a symlink points at, and
+/// every reader downstream has to be built on that — a `readlink -f` probe parsing a version back
+/// out of a filename, a sentinel for a file whose version nothing can read, and a hand-composed
+/// shell script to install under the versioned name and link the plain one. `install_pinned_tool` —
+/// the step that already manages argocd, vault and yq — decides its skip on the version and refuses
+/// a tool nothing can ask, so none of them can be managed by it at all.
 ///
 /// **THE STAMP IS A RELEASE TAG OR IT IS [unreleased], and never something in between.** A build is
 /// told its tag through [releaseTagVariable] and the value is held against the grammar before it is

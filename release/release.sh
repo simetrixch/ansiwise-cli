@@ -124,13 +124,12 @@ grep -q 'ref: master' pubspec.yaml \
   && die "a part is still named by a branch rather than a commit"
 
 # ── the manifest is resolved before anything is minted ──────────────────────
-# THE LAST FORESEEABLE FAILURE, and the one this script used to leave to the build.
-# Each part names its siblings as well, and nothing here moves those: a part that
-# names another at an older commit asks the resolver for one repository at two
-# commits through two paths, which it refuses. The refusal is reported against
-# whichever package it reached first, so it names one nobody edited, and it
-# arrives minutes after a tag is already public. Measured twice in one release on
-# 2026-09-03, each time costing a tag that named nothing and a build that read it.
+# THE LAST FORESEEABLE FAILURE, and left to the build it costs a tag that names
+# nothing and a build that reads it. Each part names its siblings as well, and
+# nothing here moves those: a part that names another at an older commit asks the
+# resolver for one repository at two commits through two paths, which it refuses.
+# The refusal is reported against whichever package it reached first, so it names
+# one nobody edited, and it arrives minutes after a tag is already public.
 #
 # The cost is small where the failure is not: resolving fetches the four trees,
 # and this script has already asked every one of them for its master.

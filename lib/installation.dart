@@ -528,17 +528,17 @@ final class StartupReason {
 /// spawned, and the child writes its header much later. Between the two, `GET /runs/{id}` finds no
 /// record — and a run that DIED before its first step and an identifier nobody ever issued are then
 /// the same absence, so a caller holding an id it was just handed can do nothing but wait out its
-/// own clock. Measured on apps6 on 2026-09-04: three answers a program declares were not given, the
-/// child wrote all three to `<id>.startup.log`, and the caller polled for 180 seconds and reported
-/// that it cannot tell whether the run is still starting or is gone.
+/// own clock: a child refused for answers a program declares and never given writes all of them to
+/// `<id>.startup.log`, and without this reader the caller polls until its own deadline and can only
+/// report that it cannot tell whether the run is still starting or is gone.
 ///
 /// **IT READS BESIDE THE RUNS AND NOT INSIDE ONE.** The run has no directory — never making one is
 /// the failure — so the file stands in the run root under a name derived from the id, which is what
 /// makes it readable from the id alone.
 ///
 /// **A FILE THAT CANNOT BE READ ANSWERS AS AN ABSENT ONE**, which is the mirror of the writer's rule
-/// that a file that cannot be written changes nothing. What the caller then gets is the answer it
-/// got before this existed, rather than a failure in place of an answer.
+/// that a file that cannot be written changes nothing. The caller then gets the plain 404 rather
+/// than a failure in place of an answer.
 Future<String?> startupReasonOf(RunDirectory directory, RunId id) async {
   final File said = File(directory.startupLog(id));
   try {

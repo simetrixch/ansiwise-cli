@@ -6,12 +6,12 @@ import 'doubles.dart';
 
 /// A 404 from this door means one thing, and a caller no longer has to guess which.
 ///
-/// **THE DEFECT THIS EXISTS FOR WAS MEASURED.** `POST /runs` answers `202` with an identifier the
-/// moment the child is spawned, and the child writes its first header much later. `GET /runs/{id}`
-/// answered the same 404 for a run that had died before its first step and for an identifier nobody
-/// ever issued — on apps6 on 2026-09-04 a run refused because three declared answers were not given,
-/// wrote all three to `<id>.startup.log` in the run root, and the caller polled for 180 seconds and
-/// then reported, correctly, that it cannot tell whether the run is still starting or is gone.
+/// **THE AMBIGUITY THIS REMOVES.** `POST /runs` answers `202` with an identifier the moment the
+/// child is spawned, and the child writes its first header much later. Without a reason to read,
+/// `GET /runs/{id}` answers the same 404 for a run that died before its first step and for an
+/// identifier nobody ever issued — a run refused for answers it was never given writes them to
+/// `<id>.startup.log` in the run root, and the caller polls to its own deadline and can only report
+/// that it cannot tell whether the run is still starting or is gone.
 ///
 /// **BOTH ARE STILL 404**, because in neither case is there a run to open. What separates them is
 /// the reason, which is the field the caller acts on.

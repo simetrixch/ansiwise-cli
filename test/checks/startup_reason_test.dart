@@ -144,11 +144,10 @@ void main() {
     );
   });
 
-  // THE READING HALF, over the door the reason exists for. A run that died before its first step
-  // and an identifier nobody ever issued were one 404 with one sentence, so a caller holding an id
-  // it had just been handed at `202` could do nothing but wait out its own clock: measured on apps6
-  // on 2026-09-04, three declared answers missing, all three on disk beside the runs, 180 seconds
-  // spent before the caller reported it could not tell a slow run from a dead one.
+  // THE READING HALF, over the door the reason exists for. Without it a run that died before its
+  // first step and an identifier nobody ever issued are one 404 with one sentence, so a caller
+  // holding an id it was just handed at `202` can do nothing but wait out its own clock — while the
+  // reason the run refused stands on disk beside the runs the whole time.
   //
   // SKIPPED WHERE THERE IS NO INSTALLATION TO READ, printed rather than passed over: the serving
   // binary composes itself from an installation's configuration, and a clone of this repository

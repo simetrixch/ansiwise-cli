@@ -74,9 +74,9 @@ void main() {
 
     toServer.add(utf8.encode(request));
     // THE CHANNEL IS WHAT ENDS THE SERVER, and closing it here is the whole shape of a session: a
-    // caller says what it came to say and stops sending. Nothing else ends it — a server that shut
-    // itself once it had handed out its connection was the defect that made `serve` mute over a
-    // real session, where the request always lost that race.
+    // caller says what it came to say and stops sending. Nothing else ends it — a server that shuts
+    // itself once it has handed out its connection makes `serve` mute over a real session, where the
+    // request always loses that race.
     await toServer.close();
     await served.timeout(const Duration(seconds: 5));
     await fromServer.close();
