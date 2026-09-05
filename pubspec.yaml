@@ -95,7 +95,7 @@ dev_dependencies:
   ansiwise_checks:
     git:
       url: https://github.com/simetrixch/ansiwise-checks.git
-      ref: d3ff17852ec0a4ce0128d9397a8959830b9a0f39
+      ref: aae0f297125ba18e16349fccbbd7c311ebb6306f
       path: registry
   # The tree half by name as well, because this package imports it directly for its own
   # tree-analysis check. Reached transitively through the registry half it would resolve and still
@@ -103,5 +103,20 @@ dev_dependencies:
   ansiwise_checks_tree:
     git:
       url: https://github.com/simetrixch/ansiwise-checks.git
-      ref: d3ff17852ec0a4ce0128d9397a8959830b9a0f39
+      ref: aae0f297125ba18e16349fccbbd7c311ebb6306f
       path: tree
+  # THE GATE ITSELF, which this repository ran out of seventeen files under tool/gate/ until eleven
+  # of the names had drifted from ansiwise-core's copy of the same eleven. tool/ci.dart,
+  # tool/analysis.dart and tool/build.dart compose it; the five files left under tool/gate/ are the
+  # RELEASE gate, which is this product's and no other repository's.
+  #
+  # ALL THREE NAME ONE COMMIT, and that is forced rather than tidy. They are three paths into one
+  # repository, and pub resolves one package from one git description — two refs here would put two
+  # checkouts of ansiwise-checks into one resolution and be refused before a file is read. These
+  # three therefore move together, and they move when the gate moves rather than when a release is
+  # cut, because a tool/ci.dart importing a package its own pin does not carry cannot compile.
+  ansiwise_checks_gate:
+    git:
+      url: https://github.com/simetrixch/ansiwise-checks.git
+      ref: aae0f297125ba18e16349fccbbd7c311ebb6306f
+      path: gate

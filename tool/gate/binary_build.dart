@@ -11,7 +11,7 @@ library;
 
 import 'dart:io';
 
-import 'dart_toolchain.dart';
+import 'package:ansiwise_checks_gate/ansiwise_checks_gate.dart';
 
 /// What building the binary came to.
 sealed class BuildOutcome {

@@ -22,12 +22,9 @@
 # ADDING A CHECK MEANS ADDING A LINE. A check file that is not declared here is reported too: an
 # undeclared check is one nobody agreed to, and it is how a suite grows a file that judges nothing.
 
-# The analyzer and the formatter really are started with the flags the gate claims, and a fault that
-# only reports at info still turns the tree red.
-analysis: test/checks/analysis_check_test.dart
-# The analyzer and the formatter find nothing to change in THIS package tree. The entry above
-# proves the gate starts them correctly; this one is the answer they give about this tree, asked
-# from the suite so a plain dart test says it too.
+# The analyzer and the formatter find nothing to change in this package tree. That they are
+# STARTED correctly is not asked here: the gate is package:ansiwise_checks_gate now, and its own
+# suite is what judges one planted tree twice, with the flags and without.
 tree-analysis: test/checks/analysis_test.dart
 # This file agrees with the suite on disk, and the refusal that enforces it can really go red.
 declared-checks: test/checks/declared_checks_test.dart
@@ -47,17 +44,6 @@ configuration-composes: test/checks/configuration_composes_test.dart
 # carrying its own words instead of as a binary nobody has. The directory the artifact goes into is
 # made first, because the compiler writes none.
 binary-build: test/checks/binary_build_test.dart
-# Which packages of a tree the gate is about to check — the denominator every other check is run once
-# per entry of. A manifest at a root with no code declares a workspace and is not counted as a
-# package of its own, and a manifest under a build output or a resolved dependency is not one either.
-dart-packages: test/checks/dart_packages_test.dart
-# The gate finds every package of the repository it stands in, rather than the one directory its own
-# script sits in. A gate that walks its own directory prints "every check green" over files it has
-# never opened, and says nothing about the packages standing beside it.
-gate-tree: test/checks/gate_tree_test.dart
-# The gate files that judge nothing are one text in every repository that has a gate — a repair that
-# lands in one copy and not the other is what this reports.
-shared-gate: test/checks/shared_gate_test.dart
 # lib/plugins.dart is what plugins.yaml says — the one file that tells one product's binary from
 # another's, generated so a second product needs a manifest rather than a copy of this repository.
 plugin-set: test/checks/plugin_set_test.dart
@@ -66,16 +52,11 @@ plugin-set: test/checks/plugin_set_test.dart
 # has to ASK it — and lib/release_stamp.dart is generated and tracked, so a stamped copy committed
 # here would make every later build on every machine answer a release it is not.
 release-stamp: test/checks/release_stamp_test.dart
-# Every package the gate walks is analysed, formatted and tested, and a package that fails any of
-# the three makes the whole gate answer non-zero.
-package-gate: test/checks/package_gate_test.dart
-# Everything the binary is composed from answered from one place — all working checkouts or all
-# pushed commits, and the gate logs which. A mix, half from the working tree and half from what was
-# pushed with nothing saying which half is which, is refused naming both halves.
+# Everything THIS binary is composed from answered from one place — all working checkouts or all
+# pushed commits. The reader and its counter-probes live with the gate; what is asked here is the
+# question only this repository can ask, over its own manifest and its own resolution, because this
+# is the package that names other repositories by a git ref.
 resolved-packages: test/checks/resolved_packages_test.dart
-# The one Dart version the checks are true against is enforced by reading this process's own
-# version, and every other is refused with both numbers in the refusal.
-version-guard: test/checks/version_guard_test.dart
 # THERE IS NO RELEASE CHECK, AND THE RELEASE IS NOT IN DART. What composes a tag, admits
 # a channel to a stage and stamps a manifest is release/release.sh — shell, because the
 # release has to run when the product does not build and has to write into two repositories

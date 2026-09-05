@@ -6,17 +6,14 @@
 ///
 /// A program and not a test, because a test is compiled by the analysis it is meant to fail on: the
 /// day the package stops analysing, a test that judged it would be the thing that did not compile.
-/// What CAN be a test is the proof that this reads the two tools correctly, and that lives in
-/// test/checks/analysis_check_test.dart — with a fake toolchain for the parsing and the real one over
-/// a scratch package for the day either tool changes what it writes.
+/// What CAN be a test is the proof that this reads the two tools correctly, and that lives with the
+/// gate, in package:ansiwise_checks_gate — with a fake toolchain for the parsing and the real one
+/// over a scratch package for the day either tool changes what it writes.
 library;
 
 import 'dart:io';
 
-import 'gate/analysis_check.dart';
-import 'gate/dart_packages.dart';
-import 'gate/paths.dart';
-import 'gate/real_dart_toolchain.dart';
+import 'package:ansiwise_checks_gate/ansiwise_checks_gate.dart';
 
 Future<void> main() async {
   // The REPOSITORY and not the package this program sits in. The first line of this file has always
@@ -34,8 +31,8 @@ Future<void> main() async {
     packages: packages,
   ).run();
 
-  for (final AnalysisIssue issue in reading.issues) {
-    stdout.writeln('  finding: $issue');
+  for (final AnalysisFinding finding in reading.findings) {
+    stdout.writeln('  finding: $finding');
   }
   for (final String name in reading.notAnalysed) {
     stdout.writeln(

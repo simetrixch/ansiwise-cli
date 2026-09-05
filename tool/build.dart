@@ -16,10 +16,10 @@ library;
 
 import 'dart:io';
 
+import 'package:ansiwise_checks_gate/ansiwise_checks_gate.dart';
+
 import 'gate/binary_build.dart';
 import 'gate/plugin_set.dart';
-import 'gate/paths.dart';
-import 'gate/real_dart_toolchain.dart';
 import 'gate/release_stamp.dart';
 
 Future<void> main(List<String> arguments) async {

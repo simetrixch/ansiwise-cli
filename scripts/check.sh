@@ -14,14 +14,14 @@
 # `dart pub get` IS A CHECK HERE AND NOT A SETUP STEP. This package is the composition root: it
 # names the framework and the plugin packages of the other repositories by a git ref, and a
 # pubspec_overrides.yaml re-points them at working checkouts beside this one. What answered decides
-# what the binary is composed from, tool/gate/resolved_packages.dart reads it, and a composition
+# what the binary is composed from, package:ansiwise_checks_gate reads it, and a composition
 # built half from the working tree and half from pushed commits is refused. A resolution that fails
 # leaves the gate reading the previous answer, so it is judged before the gate starts.
 #
-# THE DART VERSION IS NOT READ HERE. tool/gate/pins.dart names the one Dart SDK the checks of this
-# repository are true against, and tool/ci.dart refuses every other one, printing the version it
-# found and the version it expected. Reading that pin here as well would make this file a second
-# carrier of it, and a second carrier drifts.
+# THE DART VERSION IS NOT READ HERE. package:ansiwise_checks_gate names the one Dart SDK the
+# checks of this repository are true against, and tool/ci.dart refuses every other one, printing
+# the version it found and the version it expected. Reading that pin here as well would make
+# this file a second carrier of it, and a second carrier drifts.
 #
 # Windows entry point: check.ps1 beside this file. It is a shim that starts THIS file, so there
 # is no second spelling of these checks that could answer differently.

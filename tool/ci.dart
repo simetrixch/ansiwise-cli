@@ -6,17 +6,17 @@
 ///
 /// It has to end with `ci: OK — every check green`.
 ///
-/// THE FIRST THING IT DOES IS REFUSE THE WRONG TOOLCHAIN. tool/gate/pins.dart names the one Dart
-/// version the checks are true against, and every tool this gate starts is this process's own SDK —
-/// the real toolchain launches `Platform.resolvedExecutable`. So the pin is enforced by reading
-/// this process's version and refusing every other, with the found and the expected version in the
+/// THE FIRST THING IT DOES IS REFUSE THE WRONG TOOLCHAIN. The pin names the one Dart version the
+/// checks are true against, and every tool this gate starts is this process's own SDK — the real
+/// toolchain launches `Platform.resolvedExecutable`. So the pin is enforced by reading this
+/// process's version and refusing every other, with the found and the expected version in the
 /// refusal.
 ///
 /// THEN IT ASKS WHETHER EACH PACKAGE STILL SAYS WHAT IT CHECKS. `dart test` discovers what is on
 /// disk, so a deleted check file simply is not there and the run reports that every check is green.
 /// Each package answers that with a `checks.yaml` and a check that holds it against the disk; what
-/// that check cannot notice is its own absence, and tool/gate/declared_checks.dart is where that is
-/// noticed — the two files, for every package with a suite, before anything runs.
+/// that check cannot notice is its own absence, and [undeclaredSuites] is where that is noticed —
+/// the two files, for every package with a suite, before anything runs.
 ///
 /// WHICH `ansiwise_api` ANSWERED IS SAID BY `dart pub get`, NOT BY THIS PROGRAM. A developer working
 /// on the framework and the plugin at once writes a pubspec_overrides.yaml pointing at the checkout
@@ -29,24 +29,20 @@
 /// pubspec_overrides.yaml re-points them at working checkouts beside this one. Either composition
 /// is a legitimate binary and the gate logs which one this resolution is; a composition built half
 /// from the working tree and half from pushed commits is refused, because nothing in such a binary
-/// says which half is which. tool/gate/resolved_packages.dart reads what really answered.
+/// says which half is which.
 ///
-/// THIS FILE IMPORTS NOTHING BUT `dart:`, AND EVERYTHING UNDER tool/gate/ THAT IT REACHES DOES THE
-/// SAME. The gate is what resolves the tree — `dart pub get` is its first step — so it has to be
-/// able to start on a fresh clone where no package has been resolved, and a single `package:`
-/// import would make it unable to start until it had already run.
+/// WHAT IT IS MADE OF LIVES IN package:ansiwise_checks_gate, and this file is the composition root.
+/// The gate was carried under tool/gate/ here and in ansiwise-core until eleven of the file names
+/// stood in both and five of them had drifted. Nothing about the ORDER of a run needed the copy —
+/// this program is started after the package it sits in has been resolved, by scripts/check.sh and
+/// by .github/workflows/release.yml alike, and the resolution the gate itself performs is the one
+/// over every package of the repository. What stays under tool/gate/ here is the RELEASE gate,
+/// which belongs to this product and to no other repository.
 library;
 
 import 'dart:io';
 
-import 'gate/dart_packages.dart';
-import 'gate/declared_checks.dart';
-import 'gate/gate_log.dart';
-import 'gate/package_gate.dart';
-import 'gate/paths.dart';
-import 'gate/pins.dart';
-import 'gate/real_dart_toolchain.dart';
-import 'gate/version_guard.dart';
+import 'package:ansiwise_checks_gate/ansiwise_checks_gate.dart';
 
 /// Runs the gate and answers non-zero when anything is wrong.
 Future<void> main(List<String> arguments) async {
