@@ -22,7 +22,7 @@ void main() {
   const String refused = '20260903T234009Z-547069-7b5dc756';
   const String neverIssued = '20260903T234009Z-000000-deadbeef';
   const String said =
-      'regenerate-branch: needs the answer "build_platform_repo_write_pat" -- a token that may '
+      'deploy-branch: needs the answer "build_platform_repo_write_pat" -- a token that may '
       'write to the platform repository';
 
   late RefusalsAtStartup startup;
@@ -92,7 +92,7 @@ void main() {
 
   test('a run that has a record is answered from it, and the run root is not opened', () async {
     store.runs.add(
-      runRecord(id: refused, program: 'regenerate-branch', mode: Mode.run, fingerprint: 'f1'),
+      runRecord(id: refused, program: 'deploy-branch', mode: Mode.run, fingerprint: 'f1'),
     );
 
     final ApiResponse answer = await door().call(ApiRequest('GET', Uri.parse('/runs/$refused')));

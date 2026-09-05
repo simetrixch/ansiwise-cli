@@ -317,7 +317,7 @@ void main() {
     // TWO DOORS INTO ONE ENGINE, and they disagreed. A JSON decoder answers an array as
     // List<dynamic>; the command line fixed the element type before validating and this door did
     // not, so every program declaring a list answer could be run by hand and not over the API —
-    // found by driving a real release, whose regenerate-branch declares one.
+    // found by driving a real release, whose deploy-branch declares one.
     ResolvedProgram listing() =>
         ProgramResolver(
           registryOf(

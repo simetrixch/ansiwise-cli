@@ -161,7 +161,7 @@ void main() {
   test('the door hands back what a run that never started said, and only for that run', () async {
     const RunId refused = RunId('20260903T234009Z-547069-7b5dc756');
     const RunId neverIssued = RunId('20260903T234009Z-000000-deadbeef');
-    const String said = 'regenerate-branch: needs the answer "build_platform_repo_write_pat"';
+    const String said = 'deploy-branch: needs the answer "build_platform_repo_write_pat"';
     File(RunDirectory(runs.path).startupLog(refused)).writeAsStringSync('$said\n');
 
     final Process session = await Process.start('dart', <String>[
