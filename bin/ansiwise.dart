@@ -120,6 +120,10 @@ Future<void> main(List<String> argv) async {
       // Handed on so the answer conditions can be measured before the answers are checked.
       registry: installation.registry,
       requireDryRun: installation.requireDryRun,
+      // How many records of this account this machine keeps. Read from `runs: keep:` and handed to
+      // the recorder here: the configuration refuses a bad value for this key, so a key that reached
+      // nothing would be a refusal over a number that decided nothing.
+      retention: installation.retention,
       unwindDisabledBy: installation.unwindDisabledBy,
     ),
   );
@@ -140,6 +144,7 @@ Future<int> _runProgram({
   required ElevationSource? elevationSource,
   required bool withoutElevationPassword,
   required Registry registry,
+  required RunRetention retention,
   required String? unwindDisabledBy,
 }) async {
   // The same refusal the composition used, rebuilt from the same two options: everything that can
@@ -374,12 +379,27 @@ Future<int> _runProgram({
     directory: directory,
     clock: machine.clock,
     redactor: redactor,
+    retention: retention,
   );
 
   // The header goes to disk before the first step. A run that is killed a minute later is then
   // still a run somebody can find and read — and without this, nothing would answer `GET /runs`
   // and the gate could never find the dry run it is looking for.
-  await recorder.save(header);
+  //
+  // WRITING THE HEADER IS ALSO WHERE THE NUMBER OF RECORDS THIS MACHINE KEEPS IS APPLIED, and both
+  // of its answers reach the operator from here. A record another account owns is left where it is
+  // and named, because one store is written by every account that runs the engine on this machine —
+  // the deployment programs as the operator, a program on a timer as root — and neither may remove
+  // the other's. A record THIS account owns and cannot remove is a bound the machine cannot hold,
+  // so the run ends here, before its first step, with the sentence instead of with a Dart stack and
+  // exit 255.
+  try {
+    if (await recorder.save(header) case final String leftAlone) {
+      stdout.writeln(leftAlone);
+    }
+  } on RecordNotRemoved catch (refused) {
+    reason.refuse(refused.message, 65);
+  }
 
   final RunRecord record = await Runner(
     machine: machine,

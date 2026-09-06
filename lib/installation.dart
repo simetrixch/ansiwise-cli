@@ -108,6 +108,7 @@ final class Installation {
     required this.inputs,
     required this.logLevel,
     required this.requireDryRun,
+    required this.retention,
     required this.unwindDisabledBy,
   });
 
@@ -151,6 +152,13 @@ final class Installation {
 
   /// Whether a real run still needs a clean dry run behind it.
   final bool requireDryRun;
+
+  /// How many run records of this account the machine keeps, as `runs: keep:` states it.
+  ///
+  /// It is carried here so the recorder is built with it. Read and not handed on, the configuration
+  /// would refuse a bad value for a key that decided nothing, and every machine would hold the
+  /// framework's own default whatever its file said.
+  final RunRetention retention;
 
   /// WHAT turned the unwind off, or null where it is on.
   ///
@@ -244,6 +252,7 @@ Future<Installation> openInstallation({
   ElevationSource? elevationSource;
   LogLevel logLevel = LogLevel.info;
   bool requireDryRun = true;
+  RunRetention retention = const RunRetention();
   String? unwoundBy = unwindDisabledBy;
   try {
     if (!await files.exists(configuration)) {
@@ -264,6 +273,7 @@ Future<Installation> openInstallation({
     );
     logLevel = active.logLevel;
     requireDryRun = active.requireDryRun;
+    retention = active.retention;
     if (!active.allowUnwind) {
       unwoundBy = 'no_unwind: true in $configuration';
     }
@@ -364,6 +374,7 @@ Future<Installation> openInstallation({
     inputs: inputs,
     logLevel: logLevel,
     requireDryRun: requireDryRun,
+    retention: retention,
     unwindDisabledBy: unwoundBy,
   );
 }

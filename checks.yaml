@@ -99,6 +99,15 @@ startup-reason: test/checks/startup_reason_test.dart
 # programs this check writes rather than against whichever rows a catalogue happens to carry.
 elevation-without-password: test/checks/elevation_without_password_test.dart
 
+# What this binary answers when the number of run records the machine keeps cannot be held. The
+# bound is applied while the opening header is written, which is before the first step, and a record
+# this account owns and will not go made the file system refuse — a `FileSystemException` nothing
+# caught, so the process died with a Dart stack and exit 255 and the operator was told the engine
+# had crashed. The rule about whose records those are lives in the framework; which exit code a
+# refusal before the first step answers with lives here, so this holds the refusal end to end over
+# a planted store, with the same store and nothing held back beside it.
+record-not-removed: test/checks/record_not_removed_test.dart
+
 # Every option the launcher composes for a detached run is one this binary declares, and the one
 # carrying a waived gate reaches the header. The composing lives in the framework and the parsing
 # lives here, so the two meet in no process but a run on a machine — where the refusal is a usage
