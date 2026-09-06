@@ -221,33 +221,60 @@ assets="$(gh release view "$TAG" --json assets -q '[.assets[].name]|join(", ")' 
 say "binaries: $assets"
 
 # ── the two pins downstream ──────────────────────────────────────────────────
-# MATCHED ON THE SHAPE OF A TAG rather than on the neighbouring words, so a file
-# that renames its keys still pins — and a file carrying no pin at all says so
-# instead of being silently left behind.
-pin_file() { # <file> <sed expression>
-  local file="$1" expression="$2"
-  sed -i -E "$expression" "$file"
-  grep -qF "$TAG" "$file" || die "$file carries no pin this release could write"
+# THE CLONE IS BROUGHT TO ORIGIN IMMEDIATELY BEFORE THE WRITE. Both trees were cloned before
+# anything was minted, because the push rights they answer for have to be known then, and the wait
+# at the build is up to forty minutes long. A commit landing on either trunk in that time makes
+# this push non-fast-forward, and a green build then ends with no pin anywhere.
+#
+# `@{upstream}` AND NOT `origin/master`: it is the branch this clone checked out, which is whatever
+# the remote's default branch is. `git push origin HEAD` below has the same property.
+#
+# TWO ATTEMPTS. The second answers a commit that landed during the first. A third would only answer
+# a trunk being written faster than a push takes.
+#
+# THE PATTERN MATCHES THE SHAPE OF A TAG rather than the neighbouring words, so a file that renames
+# its keys still pins — and a file carrying no pin at all says so instead of being silently left
+# behind.
+#
+# THE SUBJECT OPENS WITH `release:`, which is what the organisation's push gate admits a commit
+# naming no issue by. A temporary clone runs no hook, so nothing judges these two commits where they
+# are written; the subject is what lets the same line be pushed from a configured checkout.
+write_pin() { # <repo> <clone> <file> <sed expression> <subject>
+  local repo="$1" clone="$2" file="$3" expression="$4" subject="$5" attempt
+  for attempt in 1 2; do
+    git -C "$clone" fetch --quiet origin \
+      || die "${repo} could not be fetched, so this release could not write its pin onto its head"
+    git -C "$clone" reset --hard --quiet '@{upstream}' \
+      || die "${repo} could not be brought to its head, so this release could not write its pin"
+    # A PIN THE HEAD ALREADY CARRIES IS WRITTEN, whoever wrote it. Reached where a push landed and
+    # still reported a failure, and where a person wrote the line by hand. Without this the attempt
+    # below reaches `commit -a` with nothing to commit and the release refuses a pin that is on
+    # origin.
+    if grep -qF "$TAG" "$clone/$file"; then
+      say "${repo} ${file} already names $TAG"
+      return 0
+    fi
+    sed -i -E "$expression" "$clone/$file"
+    grep -qF "$TAG" "$clone/$file" \
+      || die "${repo} ${file} carries no pin this release could write"
+    git -C "$clone" commit --quiet -a -m "$subject" \
+      -m "Written by the release of ansiwise-cli, once its binaries were built." \
+      || die "the pin of ${repo} could not be committed"
+    if git -C "$clone" push --quiet origin HEAD; then
+      return 0
+    fi
+  done
+  die "the pin of ${repo} could not be pushed, so it is a pin only this machine believes"
 }
-pin_file "$WORK/platform/$PLATFORM_PIN" \
-  "s|version: \"[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}\"|version: \"$TAG\"|"
-git -C "$WORK/platform" commit --quiet -a \
-  -m "Pin the engine at $VERSION $CHANNEL" \
-  -m "Written by the release of ansiwise-cli, once its binaries were built." \
-  || die "the pin of ${PLATFORM_REPO} could not be committed"
-git -C "$WORK/platform" push --quiet origin HEAD \
-  || die "the pin of ${PLATFORM_REPO} could not be pushed, so it is a pin only this machine believes"
+write_pin "$PLATFORM_REPO" "$WORK/platform" "$PLATFORM_PIN" \
+  "s|version: \"[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}\"|version: \"$TAG\"|" \
+  "release: pin the engine at $VERSION $CHANNEL"
 STANDING=" — the tag $TAG stands, ${PLATFORM_REPO} is pinned, and ${CATALOG_REPO} is NOT"
 say "pinned ${PLATFORM_REPO} ${PLATFORM_PIN}"
 
-pin_file "$WORK/catalog/$CATALOG_PIN" \
-  "s|- ansiwise=[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}|- ansiwise=$TAG|"
-git -C "$WORK/catalog" commit --quiet -a \
-  -m "Stamp the ansiwise $VERSION $CHANNEL pin into the cluster deploy program" \
-  -m "Written by the release of ansiwise-cli, once its binaries were built." \
-  || die "the pin of ${CATALOG_REPO} could not be committed"
-git -C "$WORK/catalog" push --quiet origin HEAD \
-  || die "the pin of ${CATALOG_REPO} could not be pushed, so it is a pin only this machine believes"
+write_pin "$CATALOG_REPO" "$WORK/catalog" "$CATALOG_PIN" \
+  "s|- ansiwise=[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}|- ansiwise=$TAG|" \
+  "release: stamp the ansiwise $VERSION $CHANNEL pin into deploy-cluster"
 say "stamped ${CATALOG_REPO} ${CATALOG_PIN}"
 
 say "DONE — $TAG is built, and every tree that names an engine names this one"
