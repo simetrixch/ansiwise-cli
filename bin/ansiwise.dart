@@ -90,43 +90,65 @@ Future<void> main(List<String> argv) async {
   // the same generated file, so one machine's two programs cannot know different steps.
   const PluginSet plugins = compiledPlugins;
 
-  final Installation installation = await openInstallation(
-    options: options,
-    plugins: plugins,
-    // The option wins where both say it, because whoever typed it meant this run.
-    unwindDisabledBy: options.flag('no-unwind') ? 'the --no-unwind option' : null,
-  );
-
-  exit(
-    await _runProgram(
-      machine: installation.machine,
-      catalogue: installation.catalogue,
-      store: installation.store,
-      directory: installation.directory,
+  // THE LAST GUARD, and what it exists for is the reader who has no standard error. Every refusal
+  // this binary MODELS goes through StartupReason.refuse and is written beside the runs; a failure
+  // nobody modelled goes to Dart's own handler, which prints a stack trace and exits 255 — and for
+  // a detached run started over the serving binary, that stack trace is written into a pipe nobody
+  // reads. The caller is then holding an identifier for which there is no record and no reason, so
+  // `GET /runs/{id}` is the same 404 as an identifier nobody ever issued, and the only thing left
+  // to do with it is wait out a clock.
+  //
+  // MEASURED, not imagined: an installation whose `elevation: password_file:` names a directory
+  // ends here with a PathAccessException out of Elevation.read, exit 255, and nothing whatever in
+  // the run root.
+  //
+  // THE STACK IS PART OF THE SENTENCE. What is caught here is by definition something nobody wrote
+  // a sentence for, so the place it was thrown is the whole of what a reader has to go on.
+  //
+  // A run whose record already carries an end writes this too, and it costs nothing: the surface
+  // reads a record where there is one and reaches for the reason only where there is not.
+  try {
+    final Installation installation = await openInstallation(
       options: options,
-      argv: argv,
-      program: ProgramName(rest.first),
-      logLevel: installation.logLevel,
-      inputs: installation.inputs,
-      // Handed on so the password that raises a command to root is redacted like any other secret,
-      // whichever route it came by, and so a run can refuse when the route named one and none came.
-      elevation: installation.elevation,
-      elevationSource: installation.elevationSource,
-      // Whether the caller says the absence of a password is what it meant, rather than something
-      // it forgot. Read here and not in the composition root because the serving binary shares that
-      // root and carries no such option: its one program starts no command of its own, and every
-      // run it accepts is a detached child of THIS binary that reads the option for itself.
-      withoutElevationPassword: options.flag('without-elevation-password'),
-      // Handed on so the answer conditions can be measured before the answers are checked.
-      registry: installation.registry,
-      requireDryRun: installation.requireDryRun,
-      // How many records of this account this machine keeps. Read from `runs: keep:` and handed to
-      // the recorder here: the configuration refuses a bad value for this key, so a key that reached
-      // nothing would be a refusal over a number that decided nothing.
-      retention: installation.retention,
-      unwindDisabledBy: installation.unwindDisabledBy,
-    ),
-  );
+      plugins: plugins,
+      // The option wins where both say it, because whoever typed it meant this run.
+      unwindDisabledBy: options.flag('no-unwind') ? 'the --no-unwind option' : null,
+    );
+
+    exit(
+      await _runProgram(
+        machine: installation.machine,
+        catalogue: installation.catalogue,
+        store: installation.store,
+        directory: installation.directory,
+        options: options,
+        argv: argv,
+        program: ProgramName(rest.first),
+        logLevel: installation.logLevel,
+        inputs: installation.inputs,
+        // Handed on so the password that raises a command to root is redacted like any other
+        // secret, whichever route it came by, and so a run can refuse when the route named one and
+        // none came.
+        elevation: installation.elevation,
+        elevationSource: installation.elevationSource,
+        // Whether the caller says the absence of a password is what it meant, rather than something
+        // it forgot. Read here and not in the composition root because the serving binary shares
+        // that root and carries no such option: its one program starts no command of its own, and
+        // every run it accepts is a detached child of THIS binary that reads the option for itself.
+        withoutElevationPassword: options.flag('without-elevation-password'),
+        // Handed on so the answer conditions can be measured before the answers are checked.
+        registry: installation.registry,
+        requireDryRun: installation.requireDryRun,
+        // How many records of this account this machine keeps. Read from `runs: keep:` and handed
+        // to the recorder here: the configuration refuses a bad value for this key, so a key that
+        // reached nothing would be a refusal over a number that decided nothing.
+        retention: installation.retention,
+        unwindDisabledBy: installation.unwindDisabledBy,
+      ),
+    );
+  } on Object catch (thrown, where) {
+    startupReasonFrom(options).refuse('this run ended with $thrown\n$where', 70);
+  }
 }
 
 Future<int> _runProgram({

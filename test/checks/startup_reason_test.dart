@@ -26,6 +26,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:ansiwise_checks_tree/ansiwise_checks_tree.dart';
+import 'package:ansiwise_cli/plugins.dart';
 import 'package:ansiwise_core/ansiwise_core.dart';
 import 'package:test/test.dart';
 
@@ -97,6 +98,57 @@ void main() {
       runs.listSync().map((FileSystemEntity e) => e.path.split(Platform.pathSeparator).last),
       isEmpty,
       reason: 'nothing was recorded for a run that has no identifier to come back for',
+    );
+  });
+
+  // THE FAILURE NOBODY MODELLED, which is the half a structural check over `stderr.writeln` cannot
+  // reach: what Dart's own handler does with an exception no `catch` here names is print a stack
+  // trace and exit 255, and for a detached run that stack trace goes into a pipe nobody reads. The
+  // caller is then holding an identifier with no record and no reason behind it, which is the same
+  // 404 as an identifier nobody ever issued.
+  //
+  // THE LEVER IS A REAL INSTALLATION MISTAKE and not a contrived one: `elevation: password_file:`
+  // naming a directory. Elevation.read opens it, the file system refuses, and nothing between there
+  // and the top of this binary names that exception.
+  test('a run that fails in a way nobody modelled still says why', () async {
+    final Directory home = Directory.systemTemp.createTempSync('ansiwise-unmodelled');
+    addTearDown(() {
+      if (home.existsSync()) home.deleteSync(recursive: true);
+    });
+    Directory('${home.path}/a-directory-not-a-file').createSync();
+    File('${home.path}/ansiwise.yaml').writeAsStringSync(
+      'plugins: [${compiledPlugins.names.first}]\n'
+      'elevation:\n'
+      '  password_file: a-directory-not-a-file\n',
+    );
+
+    final Process child = await Process.start('dart', <String>[
+      'run',
+      '${Directory.current.path}/bin/ansiwise.dart',
+      'any-program',
+      '--runs',
+      runs.path,
+      '--run',
+      'probe-unmodelled',
+      '--mode',
+      'test',
+    ], workingDirectory: home.path);
+    await child.stdin.close();
+    final Future<String> out = utf8.decodeStream(child.stdout);
+    final Future<String> err = utf8.decodeStream(child.stderr);
+    final int code = await child.exitCode;
+    await out;
+    await err;
+
+    expect(code, 70, reason: 'a failure nobody modelled is not a run that ended on its own terms');
+    final File said = File(RunDirectory(runs.path).startupLog(const RunId('probe-unmodelled')));
+    expect(said.existsSync(), isTrue, reason: 'the run died and said why to nobody');
+    expect(
+      said.readAsStringSync(),
+      allOf(contains('a-directory-not-a-file'), contains('Elevation.read')),
+      reason:
+          'the file has to carry the exception AND the place it was thrown — nobody wrote a '
+          'sentence for this one, so where it happened is all a reader has',
     );
   });
 
