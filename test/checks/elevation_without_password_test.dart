@@ -264,11 +264,7 @@ Future<ProcessResult> _ansiwise(
     '--answers',
     '-',
   ], workingDirectory: Directory.current.path);
-  child.stdin.write(
-    jsonEncode(<String, Object?>{
-      'answers': <String, Object?>{'storage_subdirectory': '${_probe.path}/under-root'},
-    }),
-  );
+  child.stdin.write(jsonEncode(<String, Object?>{'answers': <String, Object?>{}}));
   await child.stdin.close();
   // Both streams are drained at once. Waiting for one to end before reading the other leaves the
   // second pipe unread, and a child that fills its buffer blocks on its next write for ever.
@@ -319,35 +315,62 @@ Directory _plant() {
     '  password_file: ${root.path}/password.txt\n',
   );
 
-  // create_storage_directory is what a row that needs root is planted with: told `elevated: true`
-  // it reads the path as root, so the run meets the elevation refusal in the step's own check on
-  // every machine, without a tool having to exist there.
+  // set_process_flag is what a row that needs root is planted with: its check reads the path the
+  // row names and then that file's content, both at the row's own elevation and nothing else, so
+  // told `elevated: true` the run meets the elevation refusal in the step's own check on every
+  // machine, without a tool having to exist there. create_storage_directory stood here until it
+  // began measuring the machine's data disk, which is a command and not a file read.
+  File('${root.path}/under-root/args').writeAsStringSync('--probe=stands\n');
   File('${root.path}/programs/probe-continue.yaml').writeAsStringSync(
-    _programSaying(name: 'probe-continue', elevated: true, onFailure: 'continue'),
+    _programSaying(
+      name: 'probe-continue',
+      elevated: true,
+      onFailure: 'continue',
+      argsPath: '${root.path}/under-root/args',
+    ),
   );
-  File(
-    '${root.path}/programs/probe-exit.yaml',
-  ).writeAsStringSync(_programSaying(name: 'probe-exit', elevated: true, onFailure: 'exit'));
-  File(
-    '${root.path}/programs/probe-no-root.yaml',
-  ).writeAsStringSync(_programSaying(name: 'probe-no-root', elevated: false, onFailure: 'exit'));
+  File('${root.path}/programs/probe-exit.yaml').writeAsStringSync(
+    _programSaying(
+      name: 'probe-exit',
+      elevated: true,
+      onFailure: 'exit',
+      argsPath: '${root.path}/under-root/args',
+    ),
+  );
+  File('${root.path}/programs/probe-no-root.yaml').writeAsStringSync(
+    _programSaying(
+      name: 'probe-no-root',
+      elevated: false,
+      onFailure: 'exit',
+      argsPath: '${root.path}/under-root/args',
+    ),
+  );
   return root;
 }
 
 /// A program of two rows reading one path, [elevated] or not, each under [onFailure].
-String _programSaying({required String name, required bool elevated, required String onFailure}) =>
+String _programSaying({
+  required String name,
+  required bool elevated,
+  required String onFailure,
+  required String argsPath,
+}) =>
     'name: $name\n'
     'roles: [master]\n'
     'steps:\n'
-    '  - step: create_storage_directory\n'
+    '  - step: set_process_flag\n'
+    '    args_path: $argsPath\n'
+    "    flag: '--probe'\n"
+    '    value: stands\n'
+    '    file_mode: 420\n'
+    "    restart_command: ['true']\n"
     '    elevated: $elevated\n'
     '    on_failure: $onFailure\n'
-    '  - step: create_storage_directory\n'
+    '  - step: set_process_flag\n'
+    '    args_path: $argsPath\n'
+    "    flag: '--probe'\n"
+    '    value: stands\n'
+    '    file_mode: 420\n'
+    "    restart_command: ['true']\n"
     '    elevated: $elevated\n'
-    '    on_failure: $onFailure\n'
-    'answers:\n'
-    '  - name: storage_subdirectory\n'
-    '    kind: text\n'
-    '    describes: >-\n'
-    '      Where this probe reads. It is a directory that is already there, so a row that reads it '
-    'without root finds it and has nothing to do.\n';
+    '    on_failure: $onFailure\n';

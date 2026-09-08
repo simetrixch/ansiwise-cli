@@ -150,11 +150,7 @@ Future<ProcessResult> _ansiwise(Directory records) async {
     '--answers',
     '-',
   ], workingDirectory: Directory.current.path);
-  child.stdin.write(
-    jsonEncode(<String, Object?>{
-      'answers': <String, Object?>{'storage_subdirectory': '${_probe.path}/under-root'},
-    }),
-  );
+  child.stdin.write(jsonEncode(<String, Object?>{'answers': <String, Object?>{}}));
   await child.stdin.close();
   // Both streams are drained at once. Waiting for one to end before reading the other leaves the
   // second pipe unread, and a child that fills its buffer blocks on its next write for ever.
@@ -181,21 +177,24 @@ Directory _plant() {
     '  keep: 2\n',
   );
 
-  // create_storage_directory reading a directory that is already there, so the row has nothing to
-  // do and the run finishes on every machine without a tool having to exist there.
+  // set_process_flag reading a file that already carries the flag it would write, so the row has
+  // nothing to do and the run finishes on every machine without a tool having to exist there. Its
+  // check is two file reads and nothing else, at the elevation the row states, which is what this
+  // probe needs and what create_storage_directory stopped being when it started measuring the
+  // machine's data disk.
+  File('${root.path}/under-root/args').writeAsStringSync('--probe=stands\n');
   File('${root.path}/programs/probe-no-root.yaml').writeAsStringSync(
     'name: probe-no-root\n'
     'roles: [master]\n'
     'steps:\n'
-    '  - step: create_storage_directory\n'
+    '  - step: set_process_flag\n'
+    '    args_path: ${root.path}/under-root/args\n'
+    "    flag: '--probe'\n"
+    '    value: stands\n'
+    '    file_mode: 420\n'
+    "    restart_command: ['true']\n"
     '    elevated: false\n'
-    '    on_failure: exit\n'
-    'answers:\n'
-    '  - name: storage_subdirectory\n'
-    '    kind: text\n'
-    '    describes: >-\n'
-    '      Where this probe reads. It is a directory that is already there, so the row finds it and '
-    'has nothing to do.\n',
+    '    on_failure: exit\n',
   );
   return root;
 }
