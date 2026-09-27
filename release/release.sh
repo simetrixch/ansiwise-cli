@@ -28,7 +28,7 @@ set -Eeuo pipefail
 
 # WHAT STANDS IS ONE SENTENCE, RE-SET WHERE THE WORLD CHANGES AND NEVER WRITTEN OUT PER REFUSAL.
 # Every refusal ends with it, so a refusal cannot carry a clause that is no longer true: a tag push
-# failing after the commit push succeeded, or a catalog pin failing after the platform pin is
+# failing after the commit push succeeded, or a programs pin failing after the platform pin is
 # already on its remote. It is re-set at the three points below where a push has been shown to have
 # landed, and nowhere else.
 STANDING=". Nothing has been minted or pushed"
@@ -73,20 +73,20 @@ for tool in git gh awk sed; do
 done
 
 PLATFORM_REPO="simetrixch/hostyour-cloud"
-CATALOG_REPO="simetrixch/hostyour-deploy"
+PROGRAMS_REPO="simetrixch/hostyour-deploy"
 PLATFORM_PIN="clusters/platform/versions.yaml"
-CATALOG_PIN="ansiwise/programs/deploy-cluster.yaml"
+PROGRAMS_PIN="ansiwise/programs/deploy-cluster.yaml"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 git clone --quiet "https://github.com/${PLATFORM_REPO}.git" "$WORK/platform" \
   || die "${PLATFORM_REPO} could not be cloned, so this release could not write its pin"
-git clone --quiet "https://github.com/${CATALOG_REPO}.git" "$WORK/catalog" \
-  || die "${CATALOG_REPO} could not be cloned, so this release could not write its pin"
+git clone --quiet "https://github.com/${PROGRAMS_REPO}.git" "$WORK/programs" \
+  || die "${PROGRAMS_REPO} could not be cloned, so this release could not write its pin"
 GIT_TERMINAL_PROMPT=0 git -C "$WORK/platform" push --dry-run --quiet origin HEAD >/dev/null 2>&1 \
   || die "this machine may not push to ${PLATFORM_REPO}, so this release could not write its pin"
-GIT_TERMINAL_PROMPT=0 git -C "$WORK/catalog" push --dry-run --quiet origin HEAD >/dev/null 2>&1 \
-  || die "this machine may not push to ${CATALOG_REPO}, so this release could not write its pin"
+GIT_TERMINAL_PROMPT=0 git -C "$WORK/programs" push --dry-run --quiet origin HEAD >/dev/null 2>&1 \
+  || die "this machine may not push to ${PROGRAMS_REPO}, so this release could not write its pin"
 say "both trees this release pins are reachable and would accept a push"
 
 # ── the parts, brought onto the same commits before they are named ──────────
@@ -320,12 +320,12 @@ write_pin() { # <repo> <clone> <file> <sed expression> <subject>
 write_pin "$PLATFORM_REPO" "$WORK/platform" "$PLATFORM_PIN" \
   "s|version: \"[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}\"|version: \"$TAG\"|" \
   "release: pin the engine at $VERSION $CHANNEL"
-STANDING=" — the tag $TAG stands, ${PLATFORM_REPO} is pinned, and ${CATALOG_REPO} is NOT"
+STANDING=" — the tag $TAG stands, ${PLATFORM_REPO} is pinned, and ${PROGRAMS_REPO} is NOT"
 say "pinned ${PLATFORM_REPO} ${PLATFORM_PIN}"
 
-write_pin "$CATALOG_REPO" "$WORK/catalog" "$CATALOG_PIN" \
+write_pin "$PROGRAMS_REPO" "$WORK/programs" "$PROGRAMS_PIN" \
   "s|- ansiwise=[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}|- ansiwise=$TAG|" \
   "release: stamp the ansiwise $VERSION $CHANNEL pin into deploy-cluster"
-say "stamped ${CATALOG_REPO} ${CATALOG_PIN}"
+say "stamped ${PROGRAMS_REPO} ${PROGRAMS_PIN}"
 
 say "DONE — $TAG is built, and every tree that names an engine names this one"

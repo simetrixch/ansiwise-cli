@@ -47,7 +47,7 @@ try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catc
 #
 # WHAT STANDS IS ONE SENTENCE, RE-SET WHERE THE WORLD CHANGES AND NEVER WRITTEN OUT PER REFUSAL.
 # Every refusal ends with it, so a refusal cannot carry a clause that is no longer true: a tag push
-# failing after the commit push succeeded, or a catalog pin failing after the platform pin is
+# failing after the commit push succeeded, or a programs pin failing after the platform pin is
 # already on its remote. It is re-set at the three points below where a push has been shown to have
 # landed, and nowhere else.
 $standing = '. Nothing has been minted or pushed'
@@ -95,14 +95,14 @@ foreach ($tool in @('git', 'gh')) {
 }
 
 $platformRepo = 'simetrixch/hostyour-cloud'
-$catalogRepo = 'simetrixch/hostyour-deploy'
+$programsRepo = 'simetrixch/hostyour-deploy'
 $platformPin = 'clusters/platform/versions.yaml'
-$catalogPin = 'ansiwise/programs/deploy-cluster.yaml'
+$programsPin = 'ansiwise/programs/deploy-cluster.yaml'
 
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $work | Out-Null
 try {
-  foreach ($pair in @(@{ Repo = $platformRepo; At = 'platform' }, @{ Repo = $catalogRepo; At = 'catalog' })) {
+  foreach ($pair in @(@{ Repo = $platformRepo; At = 'platform' }, @{ Repo = $programsRepo; At = 'programs' })) {
     git clone --quiet "https://github.com/$($pair.Repo).git" (Join-Path $work $pair.At)
     if ($LASTEXITCODE -ne 0) {
       Die "$($pair.Repo) could not be cloned, so this release could not write its pin"
@@ -402,13 +402,13 @@ try {
   Write-Pin $platformRepo (Join-Path $work 'platform') $platformPin `
     "version: `"$shape`"" "version: `"$tag`"" `
     "release: pin the engine at $Version $Channel"
-  $standing = " — the tag $tag stands, $platformRepo is pinned, and $catalogRepo is NOT"
+  $standing = " — the tag $tag stands, $platformRepo is pinned, and $programsRepo is NOT"
   Say "pinned $platformRepo $platformPin"
 
-  Write-Pin $catalogRepo (Join-Path $work 'catalog') $catalogPin `
+  Write-Pin $programsRepo (Join-Path $work 'programs') $programsPin `
     "- ansiwise=$shape" "- ansiwise=$tag" `
     "release: stamp the ansiwise $Version $Channel pin into deploy-cluster"
-  Say "stamped $catalogRepo $catalogPin"
+  Say "stamped $programsRepo $programsPin"
 
   Say "DONE — $tag is built, and every tree that names an engine names this one"
 }

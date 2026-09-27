@@ -28,7 +28,7 @@ is what a machine downloads. A part that is red stops the release before a binar
     release/release.ps1 <x.y.z> <stable|beta|alpha>   the same on Windows
 
 The script waits at the build it started, and writes the two pins downstream — the engine version in
-hostyour-cloud and the tool stamp in the deployment catalogue — only once the binaries exist.
+hostyour-cloud and the tool stamp in the programs repository — only once the binaries exist.
 
     dart run tool/ci.dart               the gate, on this machine
     ansiwise <program> --mode test|dry|run

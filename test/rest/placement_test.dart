@@ -5,9 +5,9 @@
 /// THE DEFECT THIS EXISTS FOR SHIPPED, and it cost a whole evening to find. The manager starts a
 /// machine's surface as
 ///
-///     cd /srv/ansiwise-catalog && ansiwise-rest serve --programs /srv/ansiwise-catalog/ansiwise/programs
+///     cd /srv/ansiwise-programs && ansiwise-rest serve --programs /srv/ansiwise-programs/ansiwise/programs
 ///
-/// because the catalogue keeps its programs under `ansiwise/programs` and not at the default. The
+/// because the programs checkout keeps its programs under `ansiwise/programs` and not at the default. The
 /// surface listed them, served them, and accepted every run. The detached child was handed only the
 /// working directory, resolved `programs` against it, found nothing, and exited 66 BEFORE writing a
 /// header — so the caller was left holding a run id whose run answered 404 for ever, and the only
@@ -43,18 +43,18 @@ void main() {
         given(<String>[
           'serve',
           '--programs',
-          '/srv/ansiwise-catalog/ansiwise/programs',
+          '/srv/ansiwise-programs/ansiwise/programs',
           '--config',
-          '/srv/ansiwise-catalog/ansiwise.yaml',
+          '/srv/ansiwise-programs/ansiwise.yaml',
           '--runs',
           '/var/lib/ansiwise/runs',
         ]),
       ),
       <String>[
         '--programs',
-        '/srv/ansiwise-catalog/ansiwise/programs',
+        '/srv/ansiwise-programs/ansiwise/programs',
         '--config',
-        '/srv/ansiwise-catalog/ansiwise.yaml',
+        '/srv/ansiwise-programs/ansiwise.yaml',
         '--runs',
         '/var/lib/ansiwise/runs',
       ],
@@ -62,13 +62,13 @@ void main() {
   });
 
   // THE EXACT SHAPE THE MANAGER USES, and the one that goes wrong: the working directory is the
-  // catalogue and the programs are NOT under it at the default name.
+  // programs checkout and the programs are NOT under it at the default name.
   test('a surface told only where the programs are hands on only that', () {
     expect(
       placementFrom(
-        given(<String>['serve', '--programs', '/srv/ansiwise-catalog/ansiwise/programs']),
+        given(<String>['serve', '--programs', '/srv/ansiwise-programs/ansiwise/programs']),
       ),
-      <String>['--programs', '/srv/ansiwise-catalog/ansiwise/programs'],
+      <String>['--programs', '/srv/ansiwise-programs/ansiwise/programs'],
     );
   });
 
@@ -84,7 +84,7 @@ void main() {
         given(<String>[
           'serve',
           '--programs',
-          '/srv/ansiwise-catalog/ansiwise/programs',
+          '/srv/ansiwise-programs/ansiwise/programs',
           '--role',
           'slave',
           '--stage',
@@ -95,7 +95,7 @@ void main() {
       ),
       <String>[
         '--programs',
-        '/srv/ansiwise-catalog/ansiwise/programs',
+        '/srv/ansiwise-programs/ansiwise/programs',
         '--role',
         'slave',
         '--stage',
@@ -132,14 +132,14 @@ void main() {
       given(<String>[
         'serve',
         '--programs',
-        '/srv/ansiwise-catalog/ansiwise/programs',
+        '/srv/ansiwise-programs/ansiwise/programs',
         '--answers',
         '-',
         '--log-level',
         'debug',
       ]),
     );
-    expect(handed, <String>['--programs', '/srv/ansiwise-catalog/ansiwise/programs']);
+    expect(handed, <String>['--programs', '/srv/ansiwise-programs/ansiwise/programs']);
     for (final String never in <String>['--answers', '--log-level']) {
       expect(handed, isNot(contains(never)), reason: '$never is not where a run stands');
     }
