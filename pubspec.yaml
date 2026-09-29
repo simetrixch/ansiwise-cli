@@ -1,7 +1,7 @@
 name: ansiwise_cli
 description: The main CLI executable for Ansiwise.
 publish_to: none
-version: 0.8.304
+version: 0.8.305
 
 # TWO PROGRAMS OUT OF ONE COMPOSITION ROOT. `ansiwise` executes a config flow against this machine;
 # `ansiwise-rest` serves the REST surface, over an address or over a session's own pipes, and places
@@ -30,57 +30,57 @@ dependencies:
   ansiwise_kubernetes:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: 7a0071882c1ffc150d88f0b091bd5361420a28f5
+      ref: fa2f525e759fe1d61b5808503dc4b02632e876bb
       path: ansiwise-kubernetes
   ansiwise_vault:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: 7a0071882c1ffc150d88f0b091bd5361420a28f5
+      ref: fa2f525e759fe1d61b5808503dc4b02632e876bb
       path: ansiwise-vault
   ansiwise_vault_kubernetes:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: 7a0071882c1ffc150d88f0b091bd5361420a28f5
+      ref: fa2f525e759fe1d61b5808503dc4b02632e876bb
       path: ansiwise-vault-kubernetes
   ansiwise_helm:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: 7a0071882c1ffc150d88f0b091bd5361420a28f5
+      ref: fa2f525e759fe1d61b5808503dc4b02632e876bb
       path: ansiwise-helm
   ansiwise_host:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: 7a0071882c1ffc150d88f0b091bd5361420a28f5
+      ref: fa2f525e759fe1d61b5808503dc4b02632e876bb
       path: ansiwise-host
   ansiwise_authentik:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
       path: ansiwise-authentik
-      ref: 7a0071882c1ffc150d88f0b091bd5361420a28f5
+      ref: fa2f525e759fe1d61b5808503dc4b02632e876bb
   ansiwise_git:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: 7a0071882c1ffc150d88f0b091bd5361420a28f5
+      ref: fa2f525e759fe1d61b5808503dc4b02632e876bb
       path: ansiwise-git
   ansiwise_cloudflare:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: 7a0071882c1ffc150d88f0b091bd5361420a28f5
+      ref: fa2f525e759fe1d61b5808503dc4b02632e876bb
       path: ansiwise-cloudflare
   ansiwise_versions:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: 7a0071882c1ffc150d88f0b091bd5361420a28f5
+      ref: fa2f525e759fe1d61b5808503dc4b02632e876bb
       path: ansiwise-versions
   ansiwise_headscale:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: 7a0071882c1ffc150d88f0b091bd5361420a28f5
+      ref: fa2f525e759fe1d61b5808503dc4b02632e876bb
       path: ansiwise-headscale
   ansiwise_http:
     git:
       url: https://github.com/simetrixch/ansiwise-plugins.git
-      ref: 7a0071882c1ffc150d88f0b091bd5361420a28f5
+      ref: fa2f525e759fe1d61b5808503dc4b02632e876bb
       path: ansiwise-http
   args: ^2.7.0
 
