@@ -278,8 +278,8 @@ say "binaries: $assets"
 # Sorted by name, so a second run composes the same file the first one wrote.
 digests="$(gh release view "$TAG" --json assets \
   -q '[.assets[] | {name, digest: ((.digest // "") | ltrimstr("sha256:"))}] | sort_by(.name) | .[] | .digest + "  " + .name' \
-  2>/dev/null || true)"
-[ -n "$digests" ] || die "the release $TAG answers no digests for its binaries, so nothing may be pinned to it"
+  2>/dev/null)" && [ -n "$digests" ] \
+  || die "the release $TAG answers no digests for its binaries, so nothing may be pinned to it"
 while IFS= read -r line; do
   [[ "$line" =~ ^[0123456789abcdef]{64}\ \ [^[:space:]]+$ ]] \
     || die "the release $TAG answers no SHA-256 for every binary (${line:-an empty line}), so nothing may be pinned to it"

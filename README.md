@@ -28,7 +28,10 @@ is what a machine downloads. A part that is red stops the release before a binar
     release/release.ps1 <x.y.z> <stable|beta|alpha>   the same on Windows
 
 The script waits at the build it started, and writes the two pins downstream — the engine version in
-hostyour-cloud and the tool stamp in the programs repository — only once the binaries exist.
+hostyour-cloud and the tool stamp in the programs repository — only once the binaries exist. Beside
+the engine version it writes `clusters/platform/ansiwise.sha256`, in the same commit: the SHA-256 GitHub
+recorded for each binary when the build uploaded it. A machine is placed only the bytes those lines
+name, so a release whose binaries answer no SHA-256 is refused before anything is pinned.
 
     dart run tool/ci.dart               the gate, on this machine
     ansiwise <program> --mode test|dry|run
