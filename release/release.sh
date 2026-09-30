@@ -76,6 +76,7 @@ PLATFORM_REPO="simetrixch/hostyour-cloud"
 PROGRAMS_REPO="simetrixch/hostyour-deploy"
 PLATFORM_PIN="clusters/platform/versions.yaml"
 PROGRAMS_PIN="ansiwise/programs/deploy-cluster.yaml"
+PLATFORM_DIGESTS="clusters/platform/ansiwise.sha256"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -271,6 +272,20 @@ assets="$(gh release view "$TAG" --json assets -q '[.assets[].name]|join(", ")' 
 [ -n "$assets" ] || die "the release $TAG carries no binaries, so nothing may be pinned to it"
 say "binaries: $assets"
 
+# THE DIGESTS OF WHAT THIS RELEASE BUILT, as GitHub recorded them when the build uploaded each
+# asset. They are written beside the platform pin in the same commit, so a machine holds what it
+# fetches against the bytes built here, and not against whatever the release serves by then.
+# Sorted by name, so a second run composes the same file the first one wrote.
+digests="$(gh release view "$TAG" --json assets \
+  -q '[.assets[] | {name, digest: ((.digest // "") | ltrimstr("sha256:"))}] | sort_by(.name) | .[] | .digest + "  " + .name' \
+  2>/dev/null || true)"
+[ -n "$digests" ] || die "the release $TAG answers no digests for its binaries, so nothing may be pinned to it"
+while IFS= read -r line; do
+  [[ "$line" =~ ^[0123456789abcdef]{64}\ \ [^[:space:]]+$ ]] \
+    || die "the release $TAG answers no SHA-256 for every binary (${line:-an empty line}), so nothing may be pinned to it"
+done <<< "$digests"
+say "digests: $(printf '%s\n' "$digests" | awk '{ printf "%s%s %s", (NR > 1 ? ", " : ""), $2, substr($1, 1, 12) }')"
+
 # ── the two pins downstream ──────────────────────────────────────────────────
 # THE CLONE IS BROUGHT TO ORIGIN IMMEDIATELY BEFORE THE WRITE. Both trees were cloned before
 # anything was minted, because the push rights they answer for have to be known then, and the wait
@@ -290,24 +305,29 @@ say "binaries: $assets"
 # THE SUBJECT OPENS WITH `release:`, which is what the organisation's push gate admits a commit
 # naming no issue by. A temporary clone runs no hook, so nothing judges these two commits where they
 # are written; the subject is what lets the same line be pushed from a configured checkout.
-write_pin() { # <repo> <clone> <file> <sed expression> <subject>
-  local repo="$1" clone="$2" file="$3" expression="$4" subject="$5" attempt
+write_pin() { # <repo> <clone> <file> <sed expression> <subject> [<file beside> <its lines>]
+  local repo="$1" clone="$2" file="$3" expression="$4" subject="$5" beside="${6:-}" lines="${7:-}" attempt
   for attempt in 1 2; do
     git -C "$clone" fetch --quiet origin \
       || die "${repo} could not be fetched, so this release could not write its pin onto its head"
     git -C "$clone" reset --hard --quiet '@{upstream}' \
       || die "${repo} could not be brought to its head, so this release could not write its pin"
-    # A PIN THE HEAD ALREADY CARRIES IS WRITTEN, whoever wrote it. Reached where a push landed and
-    # still reported a failure, and where a person wrote the line by hand. Without this the attempt
-    # below reaches `commit -a` with nothing to commit and the release refuses a pin that is on
-    # origin.
-    if grep -qF "$TAG" "$clone/$file"; then
+    # A PIN THE HEAD ALREADY CARRIES IS WRITTEN, whoever wrote it, when the file beside it carries
+    # these lines too. Reached where a push landed and still reported a failure, and where a person
+    # wrote the line by hand. Without this the attempt below reaches `commit -a` with nothing to
+    # commit and the release refuses a pin that is on origin.
+    if grep -qF "$TAG" "$clone/$file" \
+      && { [ -z "$beside" ] || [ "$(cat "$clone/$beside" 2>/dev/null)" = "$lines" ]; }; then
       say "${repo} ${file} already names $TAG"
       return 0
     fi
     sed -i -E "$expression" "$clone/$file"
     grep -qF "$TAG" "$clone/$file" \
       || die "${repo} ${file} carries no pin this release could write"
+    if [ -n "$beside" ]; then
+      printf '%s\n' "$lines" > "$clone/$beside"
+      git -C "$clone" add -- "$beside" || die "${repo} ${beside} could not be staged"
+    fi
     git -C "$clone" commit --quiet -a -m "$subject" \
       -m "Written by the release of ansiwise-cli, once its binaries were built." \
       || die "the pin of ${repo} could not be committed"
@@ -319,7 +339,7 @@ write_pin() { # <repo> <clone> <file> <sed expression> <subject>
 }
 write_pin "$PLATFORM_REPO" "$WORK/platform" "$PLATFORM_PIN" \
   "s|version: \"[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}\"|version: \"$TAG\"|" \
-  "release: pin the engine at $VERSION $CHANNEL"
+  "release: pin the engine at $VERSION $CHANNEL" "$PLATFORM_DIGESTS" "$digests"
 STANDING=" — the tag $TAG stands, ${PLATFORM_REPO} is pinned, and ${PROGRAMS_REPO} is NOT"
 say "pinned ${PLATFORM_REPO} ${PLATFORM_PIN}"
 

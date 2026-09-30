@@ -98,6 +98,7 @@ $platformRepo = 'simetrixch/hostyour-cloud'
 $programsRepo = 'simetrixch/hostyour-deploy'
 $platformPin = 'clusters/platform/versions.yaml'
 $programsPin = 'ansiwise/programs/deploy-cluster.yaml'
+$platformDigests = 'clusters/platform/ansiwise.sha256'
 
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $work | Out-Null
@@ -344,6 +345,28 @@ try {
   if (-not $assets) { Die "the release $tag carries no binaries, so nothing may be pinned to it" }
   Say "binaries: $assets"
 
+  # THE DIGESTS OF WHAT THIS RELEASE BUILT, as GitHub recorded them when the build uploaded each
+  # asset. They are written beside the platform pin in the same commit, so a machine holds what it
+  # fetches against the bytes built here, and not against whatever the release serves by then.
+  # Sorted by name, so a second run composes the same file the first one wrote.
+  $digestLines = @(gh release view $tag --json assets `
+    -q '[.assets[] | {name, digest: ((.digest // "") | ltrimstr("sha256:"))}] | sort_by(.name) | .[] | .digest + "  " + .name' `
+    2>$null)
+  if ($LASTEXITCODE -ne 0 -or $digestLines.Count -eq 0) {
+    Die "the release $tag answers no digests for its binaries, so nothing may be pinned to it"
+  }
+  foreach ($line in $digestLines) {
+    if ($line -cnotmatch '^[0123456789abcdef]{64}  \S+$') {
+      $said = if ($line) { $line } else { 'an empty line' }
+      Die "the release $tag answers no SHA-256 for every binary ($said), so nothing may be pinned to it"
+    }
+  }
+  $digests = $digestLines -join "`n"
+  Say ('digests: ' + (($digestLines | ForEach-Object {
+    $parts = $_ -split '  '
+    "$($parts[1]) $($parts[0].Substring(0, 12))"
+  }) -join ', '))
+
   # ── the two pins downstream ────────────────────────────────────────────────
   # THE CLONE IS BROUGHT TO ORIGIN IMMEDIATELY BEFORE THE WRITE. Both trees were cloned before
   # anything was minted, because the push rights they answer for have to be known then, and the
@@ -364,7 +387,7 @@ try {
   # naming no issue by. A temporary clone runs no hook, so nothing judges these two commits where
   # they are written; the subject is what lets the same line be pushed from a configured checkout.
   function Write-Pin([string] $Repo, [string] $Clone, [string] $File, [string] $Pattern,
-    [string] $Replacement, [string] $Subject) {
+    [string] $Replacement, [string] $Subject, [string] $Beside = '', [string] $Lines = '') {
     $path = Join-Path $Clone $File
     foreach ($attempt in 1, 2) {
       git -C $Clone fetch --quiet origin
@@ -375,12 +398,15 @@ try {
       if ($LASTEXITCODE -ne 0) {
         Die "$Repo could not be brought to its head, so this release could not write its pin"
       }
-      # A PIN THE HEAD ALREADY CARRIES IS WRITTEN, whoever wrote it. Reached where a push landed
-      # and still reported a failure, and where a person wrote the line by hand. Without this the
-      # attempt below reaches `commit -a` with nothing to commit and the release refuses a pin that
-      # is on origin.
+      # A PIN THE HEAD ALREADY CARRIES IS WRITTEN, whoever wrote it, when the file beside it
+      # carries these lines too. Reached where a push landed and still reported a failure, and where
+      # a person wrote the line by hand. Without this the attempt below reaches `commit -a` with
+      # nothing to commit and the release refuses a pin that is on origin.
       $text = [System.IO.File]::ReadAllText($path)
-      if ($text -like "*$tag*") {
+      $besidePath = if ($Beside) { Join-Path $Clone $Beside } else { '' }
+      $besideStands = (-not $Beside) -or ((Test-Path $besidePath) -and
+        ([System.IO.File]::ReadAllText($besidePath).TrimEnd("`n") -ceq $Lines))
+      if ($text -like "*$tag*" -and $besideStands) {
         Say "$Repo $File already names $tag"
         return
       }
@@ -388,6 +414,11 @@ try {
       [System.IO.File]::WriteAllText($path, $next)
       if ($next -notlike "*$tag*") {
         Die "$Repo $File carries no pin this release could write"
+      }
+      if ($Beside) {
+        [System.IO.File]::WriteAllText($besidePath, "$Lines`n")
+        git -C $Clone add -- $Beside
+        if ($LASTEXITCODE -ne 0) { Die "$Repo $Beside could not be staged" }
       }
       git -C $Clone commit --quiet -a -m $Subject `
         -m 'Written by the release of ansiwise-cli, once its binaries were built.'
@@ -401,7 +432,7 @@ try {
 
   Write-Pin $platformRepo (Join-Path $work 'platform') $platformPin `
     "version: `"$shape`"" "version: `"$tag`"" `
-    "release: pin the engine at $Version $Channel"
+    "release: pin the engine at $Version $Channel" $platformDigests $digests
   $standing = " — the tag $tag stands, $platformRepo is pinned, and $programsRepo is NOT"
   Say "pinned $platformRepo $platformPin"
 
