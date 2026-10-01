@@ -346,19 +346,42 @@ try {
   Say "binaries: $assets"
 
   # THE DIGESTS OF WHAT THIS RELEASE BUILT, as GitHub recorded them when the build uploaded each
-  # asset. They are written beside the platform pin in the same commit, so a machine holds what it
+  # asset. They are written beside the platform pin, in the same commit as the pin, or in a commit of
+  # their own where the head already names the tag without them. A machine then holds what it
   # fetches against the bytes built here, and not against whatever the release serves by then.
   # Sorted by name, so a second run composes the same file the first one wrote.
+  #
+  # EVERY BINARY THE WORKFLOW PUBLISHES HAS TO STAND THERE ONCE, because every machine asks for each
+  # of them by name and refuses a pin that lacks one. The names are the workflow's own BINARIES, read
+  # rather than restated.
+  $declared = Get-Content '.github/workflows/release.yml' | Select-String -Pattern '^  BINARIES:\s*(.*)$' | Select-Object -First 1
+  $binaries = if ($declared) { @($declared.Matches[0].Groups[1].Value -split '\s+' | Where-Object { $_ }) } else { @() }
+  if ($binaries.Count -eq 0) {
+    Die '.github/workflows/release.yml names no BINARIES, so the digests could not be held to them'
+  }
+  $digestErrors = Join-Path $work 'digests.err'
   $digestLines = @(gh release view $tag --json assets `
     -q '[.assets[] | {name, digest: ((.digest // "") | ltrimstr("sha256:"))}] | sort_by(.name) | .[] | .digest + "  " + .name' `
-    2>$null)
-  if ($LASTEXITCODE -ne 0 -or $digestLines.Count -eq 0) {
+    2>$digestErrors)
+  if ($LASTEXITCODE -ne 0) {
+    $said = Get-Content $digestErrors -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $said) { $said = 'gh said nothing' }
+    Die "the digests of $tag could not be read ($said), so nothing may be pinned to it"
+  }
+  if ($digestLines.Count -eq 0) {
     Die "the release $tag answers no digests for its binaries, so nothing may be pinned to it"
   }
   foreach ($line in $digestLines) {
     if ($line -cnotmatch '^[0123456789abcdef]{64}  \S+$') {
       $said = if ($line) { $line } else { 'an empty line' }
       Die "the release $tag answers no SHA-256 for every binary ($said), so nothing may be pinned to it"
+    }
+  }
+  foreach ($binary in $binaries) {
+    $asset = "$binary-$tag-linux-x64"
+    $named = @($digestLines | Where-Object { ($_ -split '  ')[1] -ceq $asset })
+    if ($named.Count -ne 1) {
+      Die "the release $tag does not answer exactly one digest for $asset, so nothing may be pinned to it"
     }
   }
   $digests = $digestLines -join "`n"

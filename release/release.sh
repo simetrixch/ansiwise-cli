@@ -273,17 +273,31 @@ assets="$(gh release view "$TAG" --json assets -q '[.assets[].name]|join(", ")' 
 say "binaries: $assets"
 
 # THE DIGESTS OF WHAT THIS RELEASE BUILT, as GitHub recorded them when the build uploaded each
-# asset. They are written beside the platform pin in the same commit, so a machine holds what it
-# fetches against the bytes built here, and not against whatever the release serves by then.
-# Sorted by name, so a second run composes the same file the first one wrote.
-digests="$(gh release view "$TAG" --json assets \
+# asset. They are written beside the platform pin, in the same commit as the pin, or in a commit of
+# their own where the head already names the tag without them. A machine then holds what it fetches
+# against the bytes built here, and not against whatever the release serves by then. Sorted by
+# name, so a second run composes the same file the first one wrote.
+#
+# EVERY BINARY THE WORKFLOW PUBLISHES HAS TO STAND THERE ONCE, because every machine asks for each of
+# them by name and refuses a pin that lacks one. The names are the workflow's own BINARIES, read
+# rather than restated.
+binaries="$(awk '/^  BINARIES:/ { sub(/^  BINARIES:[ \t]*/, ""); print; exit }' .github/workflows/release.yml)"
+[ -n "$binaries" ] || die ".github/workflows/release.yml names no BINARIES, so the digests could not be held to them"
+if ! digests="$(gh release view "$TAG" --json assets \
   -q '[.assets[] | {name, digest: ((.digest // "") | ltrimstr("sha256:"))}] | sort_by(.name) | .[] | .digest + "  " + .name' \
-  2>/dev/null)" && [ -n "$digests" ] \
-  || die "the release $TAG answers no digests for its binaries, so nothing may be pinned to it"
+  2>"$WORK/digests.err")"; then
+  said="$(head -1 "$WORK/digests.err" 2>/dev/null || true)"
+  die "the digests of $TAG could not be read (${said:-gh said nothing}), so nothing may be pinned to it"
+fi
+[ -n "$digests" ] || die "the release $TAG answers no digests for its binaries, so nothing may be pinned to it"
 while IFS= read -r line; do
   [[ "$line" =~ ^[0123456789abcdef]{64}\ \ [^[:space:]]+$ ]] \
     || die "the release $TAG answers no SHA-256 for every binary (${line:-an empty line}), so nothing may be pinned to it"
 done <<< "$digests"
+for binary in $binaries; do
+  [ "$(printf '%s\n' "$digests" | awk -v asset="$binary-$TAG-linux-x64" '$2 == asset' | grep -c .)" = 1 ] \
+    || die "the release $TAG does not answer exactly one digest for $binary-$TAG-linux-x64, so nothing may be pinned to it"
+done
 say "digests: $(printf '%s\n' "$digests" | awk '{ printf "%s%s %s", (NR > 1 ? ", " : ""), $2, substr($1, 1, 12) }')"
 
 # ── the two pins downstream ──────────────────────────────────────────────────
