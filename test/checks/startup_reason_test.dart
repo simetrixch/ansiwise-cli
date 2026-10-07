@@ -30,10 +30,19 @@ import 'package:ansiwise_cli/plugins.dart';
 import 'package:ansiwise_core/ansiwise_core.dart';
 import 'package:test/test.dart';
 
+import '../support/starts_ansiwise.dart';
+
 /// How a line of a hand-built request ends on the wire.
 const String crlf = '\r\n';
 
 void main() {
+  // SKIPPED WHERE ANSIWISE MUST NOT RUN, printed rather than passed over: running this suite starts
+  // ansiwise as a process, which must not happen on this workstation.
+  if (startsAnsiwiseSkip != null) {
+    test('startup-reason', () {}, skip: startsAnsiwiseSkip);
+    return;
+  }
+
   late Directory runs;
 
   setUp(() => runs = Directory.systemTemp.createTempSync('ansiwise-startup'));

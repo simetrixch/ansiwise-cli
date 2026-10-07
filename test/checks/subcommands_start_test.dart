@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:ansiwise_checks_tree/ansiwise_checks_tree.dart';
 import 'package:test/test.dart';
 
+import '../support/starts_ansiwise.dart';
+
 /// How a line of a hand-built request ends on the wire.
 const String crlf = '\r\n';
 
@@ -34,6 +36,13 @@ const String crlf = '\r\n';
 /// What a run holding no password may then be, and what it is refused for, is a different question
 /// and is measured elsewhere: test/checks/elevation_without_password_test.dart.
 Future<void> main() async {
+  // SKIPPED WHERE ANSIWISE MUST NOT RUN, printed rather than passed over: running this suite starts
+  // ansiwise as a process, which must not happen on this workstation.
+  if (startsAnsiwiseSkip != null) {
+    test('subcommands-start', () {}, skip: startsAnsiwiseSkip);
+    return;
+  }
+
   // SKIPPED WHERE THERE IS NO INSTALLATION TO READ, printed rather than passed over: what is judged
   // here is this binary against an installation's configuration, and a clone of this repository
   // standing alone has none.

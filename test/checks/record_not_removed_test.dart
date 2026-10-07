@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:ansiwise_core/ansiwise_core.dart';
 import 'package:test/test.dart';
 
+import '../support/starts_ansiwise.dart';
+
 /// record-not-removed — what this binary answers when the bound on run records cannot be held.
 ///
 /// **THE DEFECT IT EXISTS FOR.** Writing a run's opening header is where the number of records the
@@ -25,6 +27,13 @@ import 'package:test/test.dart';
 /// framework's own recorder, so the shape is fixed here rather than being whatever a machine
 /// happens to hold.
 void main() {
+  // SKIPPED WHERE ANSIWISE MUST NOT RUN, printed rather than passed over: running this suite starts
+  // ansiwise as a process, which must not happen on this workstation.
+  if (startsAnsiwiseSkip != null) {
+    test('record-not-removed', () {}, skip: startsAnsiwiseSkip);
+    return;
+  }
+
   group(
     'record-not-removed',
     () {

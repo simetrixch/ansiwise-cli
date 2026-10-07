@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:ansiwise_core/ansiwise_core.dart';
 import 'package:test/test.dart';
 
+import '../support/starts_ansiwise.dart';
 import 'launcher_child.dart' show composedArgvFileName;
 
 /// launcher-options — every option the launcher composes for a run is one this binary declares, and
@@ -28,6 +29,13 @@ import 'launcher_child.dart' show composedArgvFileName;
 /// the same record the missing declaration did. A run of an installation whose gate is waived is
 /// started through the real binary and its header is read off the disk.
 Future<void> main() async {
+  // SKIPPED WHERE ANSIWISE MUST NOT RUN, printed rather than passed over: running this suite starts
+  // ansiwise as a process, which must not happen on this workstation.
+  if (startsAnsiwiseSkip != null) {
+    test('launcher-options', () {}, skip: startsAnsiwiseSkip);
+    return;
+  }
+
   // The child, under the name the launcher is told the program is called. A `.dart` file, because
   // the executable the launcher is given is the Dart toolchain — the options it composes are the
   // same whatever it starts.

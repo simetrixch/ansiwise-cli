@@ -6,6 +6,7 @@ import 'package:ansiwise_core/testing.dart';
 import 'package:test/test.dart';
 
 import '../support/harness.dart';
+import '../support/starts_ansiwise.dart';
 
 /// elevation-without-password — what `--without-elevation-password` may promise, held against what
 /// the engine underneath it actually does with a command that has to run as root.
@@ -26,6 +27,13 @@ import '../support/harness.dart';
 /// engine does not route through a row's policy; nothing in the framework offers such a place today,
 /// and the premise probe is what would notice if one appeared.
 Future<void> main() async {
+  // SKIPPED WHERE ANSIWISE MUST NOT RUN, printed rather than passed over: running this suite starts
+  // ansiwise as a process, which must not happen on this workstation.
+  if (startsAnsiwiseSkip != null) {
+    test('elevation-without-password', () {}, skip: startsAnsiwiseSkip);
+    return;
+  }
+
   group('elevation-without-password', () {
     test(
       'THE PREMISE: a row that says continue carries the run past an elevation refusal',
