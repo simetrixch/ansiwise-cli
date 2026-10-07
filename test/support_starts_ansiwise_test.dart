@@ -25,4 +25,35 @@ void main() {
       expect(startsAnsiwiseSkip, startsAnsiwiseSkipFor(Platform.environment));
     });
   });
+
+  // The next suite that starts a process will not know the rule, so the rule checks itself: every
+  // suite that starts one must be able to skip where ansiwise must not run.
+  test('every suite that starts a process skips through startsAnsiwiseSkip', () {
+    final RegExp startsProcess = RegExp(r'Process\.(start|run)\(');
+    final List<String> starting = <String>[];
+    final List<String> missing = <String>[];
+    for (final FileSystemEntity entity in Directory('test').listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('_test.dart')) {
+        continue;
+      }
+      final String text = entity.readAsStringSync();
+      if (!startsProcess.hasMatch(text)) {
+        continue;
+      }
+      starting.add(entity.path);
+      if (!text.contains('startsAnsiwiseSkip')) {
+        missing.add(entity.path);
+      }
+    }
+    expect(
+      starting,
+      isNotEmpty,
+      reason: 'no suite under test/ starts a process, so this scan proves nothing',
+    );
+    expect(
+      missing,
+      isEmpty,
+      reason: 'these suites start a process but cannot skip where ansiwise must not run: $missing',
+    );
+  });
 }
