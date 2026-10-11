@@ -35,6 +35,8 @@ STANDING=". Nothing has been minted or pushed"
 
 die() { echo "release: $*$STANDING" >&2; exit 1; }
 say() { echo "release: $*"; }
+# shellcheck source=release/write_pin.sh
+source "$(dirname "${BASH_SOURCE[0]}")/write_pin.sh"
 
 # WHAT WAS NEVER FORESEEN STILL ENDS IN A SENTENCE. Every refusal in this script is one it went
 # looking for; this is the rest. Without it an unforeseen failure ends with whatever the failing
@@ -76,6 +78,7 @@ PLATFORM_REPO="simetrixch/hostyour-cloud"
 PROGRAMS_REPO="simetrixch/hostyour-deploy"
 PLATFORM_PIN="clusters/platform/versions.yaml"
 PROGRAMS_PIN="ansiwise/programs/deploy-cluster.yaml"
+PROGRAMS_WORKFLOW=".github/workflows/tests.yml"
 PLATFORM_DIGESTS="clusters/platform/ansiwise.sha256"
 
 WORK="$(mktemp -d)"
@@ -301,65 +304,18 @@ done
 say "digests: $(printf '%s\n' "$digests" | awk '{ printf "%s%s %s", (NR > 1 ? ", " : ""), $2, substr($1, 1, 12) }')"
 
 # ── the two pins downstream ──────────────────────────────────────────────────
-# THE CLONE IS BROUGHT TO ORIGIN IMMEDIATELY BEFORE THE WRITE. Both trees were cloned before
-# anything was minted, because the push rights they answer for have to be known then, and the wait
-# at the build is up to forty minutes long. A commit landing on either trunk in that time makes
-# this push non-fast-forward, and a green build then ends with no pin anywhere.
-#
-# `@{upstream}` AND NOT `origin/master`: it is the branch this clone checked out, which is whatever
-# the remote's default branch is. `git push origin HEAD` below has the same property.
-#
-# TWO ATTEMPTS. The second answers a commit that landed during the first. A third would only answer
-# a trunk being written faster than a push takes.
-#
-# THE PATTERN MATCHES THE SHAPE OF A TAG rather than the neighbouring words, so a file that renames
-# its keys still pins — and a file carrying no pin at all says so instead of being silently left
-# behind.
-#
-# THE SUBJECT OPENS WITH `release:`, which is what the organisation's push gate admits a commit
-# naming no issue by. A temporary clone runs no hook, so nothing judges these two commits where they
-# are written; the subject is what lets the same line be pushed from a configured checkout.
-write_pin() { # <repo> <clone> <file> <sed expression> <subject> [<file beside> <its lines>]
-  local repo="$1" clone="$2" file="$3" expression="$4" subject="$5" beside="${6:-}" lines="${7:-}" attempt
-  for attempt in 1 2; do
-    git -C "$clone" fetch --quiet origin \
-      || die "${repo} could not be fetched, so this release could not write its pin onto its head"
-    git -C "$clone" reset --hard --quiet '@{upstream}' \
-      || die "${repo} could not be brought to its head, so this release could not write its pin"
-    # A PIN THE HEAD ALREADY CARRIES IS WRITTEN, whoever wrote it, when the file beside it carries
-    # these lines too. Reached where a push landed and still reported a failure, and where a person
-    # wrote the line by hand. Without this the attempt below reaches `commit -a` with nothing to
-    # commit and the release refuses a pin that is on origin.
-    if grep -qF "$TAG" "$clone/$file" \
-      && { [ -z "$beside" ] || [ "$(cat "$clone/$beside" 2>/dev/null)" = "$lines" ]; }; then
-      say "${repo} ${file} already names $TAG"
-      return 0
-    fi
-    sed -i -E "$expression" "$clone/$file"
-    grep -qF "$TAG" "$clone/$file" \
-      || die "${repo} ${file} carries no pin this release could write"
-    if [ -n "$beside" ]; then
-      printf '%s\n' "$lines" > "$clone/$beside"
-      git -C "$clone" add -- "$beside" || die "${repo} ${beside} could not be staged"
-    fi
-    git -C "$clone" commit --quiet -a -m "$subject" \
-      -m "Written by the release of ansiwise-cli, once its binaries were built." \
-      || die "the pin of ${repo} could not be committed"
-    if git -C "$clone" push --quiet origin HEAD; then
-      return 0
-    fi
-  done
-  die "the pin of ${repo} could not be pushed, so it is a pin only this machine believes"
-}
+# write_pin stands in release/write_pin.sh, sourced at the head of this script.
 write_pin "$PLATFORM_REPO" "$WORK/platform" "$PLATFORM_PIN" \
   "s|version: \"[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}\"|version: \"$TAG\"|" \
   "release: pin the engine at $VERSION $CHANNEL" "$PLATFORM_DIGESTS" "$digests"
 STANDING=" — the tag $TAG stands, ${PLATFORM_REPO} is pinned, and ${PROGRAMS_REPO} is NOT"
 say "pinned ${PLATFORM_REPO} ${PLATFORM_PIN}"
 
+RELEASE_COMMIT="$(git rev-parse "$TAG^{commit}")"
 write_pin "$PROGRAMS_REPO" "$WORK/programs" "$PROGRAMS_PIN" \
   "s|- ansiwise=[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}|- ansiwise=$TAG|" \
-  "release: stamp the ansiwise $VERSION $CHANNEL pin into deploy-cluster"
-say "stamped ${PROGRAMS_REPO} ${PROGRAMS_PIN}"
+  "release: stamp the ansiwise $VERSION $CHANNEL pin into deploy-cluster" "" "" \
+  "$PROGRAMS_WORKFLOW" "$RELEASE_COMMIT"
+say "stamped ${PROGRAMS_REPO} ${PROGRAMS_PIN} and moved ${PROGRAMS_WORKFLOW} to $RELEASE_COMMIT"
 
 say "DONE — $TAG is built, and every tree that names an engine names this one"
