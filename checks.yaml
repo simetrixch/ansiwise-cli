@@ -57,12 +57,15 @@ release-stamp: test/checks/release_stamp_test.dart
 # question only this repository can ask, over its own manifest and its own resolution, because this
 # is the package that names other repositories by a git ref.
 resolved-packages: test/checks/resolved_packages_test.dart
-# THERE IS NO RELEASE CHECK, AND THE RELEASE IS NOT IN DART. What composes a tag, admits
-# a channel to a stage and stamps a manifest is release/release.sh — shell, because the
-# release has to run when the product does not build and has to write into two repositories
-# that are not this one. Tying it to the toolchain this package pins stops the gate outright:
-# a workstation one patch version ahead makes tool/ci.dart refuse every run, and a release is
-# then cut with nothing judging it at all.
+# THE RELEASE IS NOT IN DART. What composes a tag, admits a channel to a stage and stamps a
+# manifest is release/release.sh — shell, because the release has to run when the product does
+# not build and has to write into two repositories that are not this one. Tying it to the
+# toolchain this package pins stops the gate outright: a workstation one patch version ahead
+# makes tool/ci.dart refuse every run, and a release is then cut with nothing judging it at all.
+# Only its write_pin, a file of its own in both spellings, is judged here: the programs pin and
+# the programs' CI ref land in one commit, a workflow with no ansiwise-cli ref is refused, and
+# bash and pwsh say the same.
+release-pin: test/checks/release_pin_test.dart
 # Every dependency this package resolves out of git names a release tag and never a branch. A
 # package of this family produces no file, so whoever resolves one gets the tree standing at the ref
 # it named — and a branch ref hands this binary a different framework the next time anybody pushes,
