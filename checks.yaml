@@ -62,9 +62,23 @@ resolved-packages: test/checks/resolved_packages_test.dart
 # not build and has to write into two repositories that are not this one. Tying it to the
 # toolchain this package pins stops the gate outright: a workstation one patch version ahead
 # makes tool/ci.dart refuse every run, and a release is then cut with nothing judging it at all.
-# Only its write_pin, a file of its own, is judged here: the programs pin and the commit of
+# Its write_pin, a file of its own, is judged here: the programs pin and the commit of
 # ansiwise-cli in the programs' ci-sources.json land in one commit, and a file pinning none is refused.
 release-pin: test/checks/release_pin_test.dart
+# The digests the release pins beside the engine version are read out of the manifest Zot holds for
+# the tag, by release/manifest_digests.sh, a file of its own that release.sh sources. A machine is
+# placed only the bytes those lines name, so a manifest missing a binary, carrying a digest that is
+# not SHA-256, a layer of another tag or a binary twice is refused before anything is pinned.
+release-digests: test/checks/release_digests_test.dart
+# release/build.sh is what the publish pipeline runs on the tag, and every file it leaves is
+# published. It refuses a tag outside the release grammar and a Dart other than the gate's pin
+# before it builds, and a binary that does not answer the tag before it leaves one — asked here of
+# a stand-in SDK on the PATH, since nothing else runs the script before a release does.
+release-build: test/checks/release_build_test.dart
+# The binaries are built in the publish pipeline and held in Zot, so a script under release/ that
+# names the gh command, a workflow file, the GitHub API, raw file hosting or a release download
+# asks a service the release no longer has, and fails only on the day a release is cut.
+release-without-github-service: test/checks/release_without_github_service_test.dart
 # Every dependency this package resolves out of git names a release tag and never a branch. A
 # package of this family produces no file, so whoever resolves one gets the tree standing at the ref
 # it named — and a branch ref hands this binary a different framework the next time anybody pushes,

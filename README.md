@@ -20,18 +20,21 @@ Those three are passive parts: they carry no version, cut no tag, publish nothin
 A release of this repository names the commit of each it was built from, and `release/release.sh`
 writes those commits before it mints anything.
 
-The one workflow of the family lives here. It loads all four trees at those commits, lints and tests
-every one of them, and only then compiles the two binaries for linux-x64 and attaches them — which
-is what a machine downloads. A part that is red stops the release before a binary exists.
+On the release tag the publish pipeline on the owner's master clones this repository at the tag and
+runs `release/build.sh`, which compiles the two binaries for linux-x64 and refuses a Dart other than
+the gate's pin and a binary that does not answer the tag. The pipeline pushes them as one manifest
+to Zot, `zot.master.digitacloud.app/simetrixch/ansiwise-cli:<tag>`, which is what a machine
+downloads.
 
     release/release.sh <x.y.z> <stable|beta|alpha>    cut a release, end to end
+    bash release/build.sh <tag> <out-dir>              build the binaries of one tag
 
-The script waits at the build it started, and writes the two pins downstream — the engine version in
+The script waits for that manifest, and writes the two pins downstream — the engine version in
 hostyour-cloud and the tool stamp in the programs repository — only once the binaries exist. Beside
-the engine version it writes `clusters/platform/ansiwise.sha256`: the SHA-256 GitHub recorded for each
-binary when the build uploaded it, in the same commit as the pin, or in a commit of its own where the
+the engine version it writes `clusters/platform/ansiwise.sha256`: the SHA-256 Zot holds for each
+binary of the release's manifest, in the same commit as the pin, or in a commit of its own where the
 head already names the tag without them. A machine is placed only the bytes those lines name, so a
-release that lacks a digest for any binary the workflow publishes is refused before anything is pinned.
+release that lacks a digest for any binary release/build.sh builds is refused before anything is pinned.
 
     dart run tool/ci.dart               the gate, on this machine
     ansiwise <program> --mode test|dry|run

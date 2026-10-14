@@ -70,8 +70,7 @@ String stampFor(Map<String, String> environment) {
     throw ReleaseStampRefused('$releaseTagVariable holds a tag that is no release: $refusal');
   }
   // AND THE STAMP IS FOURTEEN DIGITS, which neither reader above says. ReleasedTag reads it as
-  // `[0-9]+` because it is ordering tags that a filter already admitted, and the filter cannot
-  // count either — `[0-9]+` is what a glob can write. The authority is
+  // `[0-9]+` because it orders tags rather than judging them. The authority is
   // hostyour-manager/shared/release.ts:22, `-([0-9]{14})$`, and a tag one digit short is a tag that
   // repository refuses: a binary stamped with it would answer a version the platform cannot read.
   if (ReleasedTag.read(stated)?.stamp.length != _stampDigits) {

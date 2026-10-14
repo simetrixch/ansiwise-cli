@@ -4,10 +4,11 @@
 # =============================================================================
 #
 # WHAT IT DOES. Names the commit of each part this engine is built from, mints
-# the tag, and waits at the workflow that tag starts. That workflow is the only
-# place anything of ansiwise is built: it loads all four trees, lints and tests
-# every one of them, and builds the executable. When it comes back green this
-# script writes the two pins downstream that make the new engine the one an
+# the tag, and waits for the binaries that tag starts. On the tag the publish
+# pipeline on the owner's master clones this repository, builds both binaries
+# with release/build.sh, and pushes them as ONE manifest to Zot under the tag.
+# When that manifest is there this script reads the digests out of it and
+# writes the two pins downstream that make the new engine the one an
 # installation takes.
 #
 # WHY IT WAITS. A release that ends when the tag is pushed hands back a number
@@ -37,6 +38,8 @@ die() { echo "release: $*$STANDING" >&2; exit 1; }
 say() { echo "release: $*"; }
 # shellcheck source=release/write_pin.sh
 source "$(dirname "${BASH_SOURCE[0]}")/write_pin.sh"
+# shellcheck source=release/manifest_digests.sh
+source "$(dirname "${BASH_SOURCE[0]}")/manifest_digests.sh"
 
 # WHAT WAS NEVER FORESEEN STILL ENDS IN A SENTENCE. Every refusal in this script is one it went
 # looking for; this is the rest. Without it an unforeseen failure ends with whatever the failing
@@ -69,10 +72,15 @@ cd "$TOP"
 # ── everything this release will need, before it mints anything ──────────────
 [ -z "$(git status --porcelain)" ] \
   || die "the worktree is dirty — commit or stash first"
-for tool in git gh awk sed; do
+for tool in git curl jq awk sed; do
   command -v "$tool" >/dev/null 2>&1 \
     || die "$tool is not on this path and this release needs it"
 done
+# THE BINARIES ARE release/build.sh's OWN, read rather than restated: the manifest this release waits
+# for is held to one digest for each of them, and a build.sh naming none is met here, before a tag.
+binaries="$(awk -F'"' '/^BINARIES="/ { print $2; exit }' release/build.sh)"
+[ -n "$binaries" ] \
+  || die "release/build.sh names no BINARIES, so the digests of this release could not be held to them"
 
 PLATFORM_REPO="simetrixch/hostyour-cloud"
 PROGRAMS_REPO="simetrixch/hostyour-deploy"
@@ -229,78 +237,47 @@ git push --quiet origin "$TAG" \
 STANDING=" — the tag $TAG stands, and no pin is written"
 say "the tag $TAG is on origin — the one build has started"
 
-# ── wait at that build, asked for BY NAME ────────────────────────────────────
-# NEVER `gh run list --limit 1`. In the seconds after a push the newest run is
-# still the PREVIOUS release's, and reading it reports a verdict that belongs to
-# another tag: a script that does exactly that announces a green build for a
-# release that has not started.
-state=""
-run_id=""
+# ── wait for the binaries, asked for BY TAG ──────────────────────────────────
+# THE MANIFEST IS ADDRESSED BY THE TAG, so no answer can belong to another release: Zot answers 404
+# until the publish pipeline has pushed this tag's manifest, and 200 once it stands. It is read
+# anonymously, as every machine reads the binaries, so a release cannot pass on a credential the
+# machines do not hold. Every other answer, and a curl that could not ask at all, is waited past as
+# well, because the registry may be restarting; the last one is named if the wait runs out.
+MANIFEST_URL="https://zot.master.digitacloud.app/v2/simetrixch/ansiwise-cli/manifests/$TAG"
+answer=""
+published=""
 for _ in $(seq 1 120); do
-  # BY headBranch AND NOT BY THE COMMIT TITLE. A tag push names the tag there, and it is the
-  # only field that says which tag a run belongs to. The title is the head commit's message,
-  # which names whatever tag was last committed - so a release that had nothing to commit,
-  # because its manifest already said what it means to say, looks for a run under the previous
-  # tag's name and never finds the one it just started.
-  #
-  # THE RUN'S NUMBER IS TAKEN WITH ITS STATE, in one reading rather than a second one afterwards.
-  # A later listing can answer about a different run, and the number is what the log below is
-  # asked for by.
-  found="$(gh run list --limit 15 --json headBranch,status,conclusion,databaseId \
-           -q ".[] | select(.headBranch == \"${TAG}\") | .status+\" \"+(.conclusion//\"\")+\" \"+(.databaseId|tostring)" \
-           | head -1)"
-  state="${found% *}"
-  run_id="${found##* }"
-  case "$state" in completed*) break ;; esac
+  if status="$(curl -sS --max-time 60 -o "$WORK/manifest.json" -w '%{http_code}' \
+                 -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+                 "$MANIFEST_URL" 2>"$WORK/curl.err")"; then
+    answer="HTTP $status"
+    if [ "$status" = 200 ]; then
+      published=yes
+      break
+    fi
+  else
+    answer="curl: $(head -1 "$WORK/curl.err" 2>/dev/null || true)"
+  fi
   sleep 20
 done
-case "$state" in
-  "completed success") say "the build of $TAG is green" ;;
-  *)
-    # THE REASON IS PRINTED HERE, not left to a command somebody is told to run next. Whoever reads
-    # this failure is standing at a terminal with the credential already in hand, and a release that
-    # sends them one round trip away for the cause has answered nothing. The FAILED STEPS are what
-    # the build refused on; the whole log is thousands of lines of green and buries them.
-    if [ -n "$run_id" ]; then
-      printf '%s\n' "----- the failed steps of run $run_id -----" >&2
-      gh run view "$run_id" --log-failed 2>&1 | tail -120 >&2 \
-        || printf '%s\n' "the log of run $run_id could not be read" >&2
-      printf '%s\n' "----- end of run $run_id -----" >&2
-    fi
-    die "the build of $TAG did not finish green (${state:-it never appeared})"
-    ;;
-esac
+# THE BUILD'S OWN LOG IS NOT READ HERE. It stands on the master's Tekton, behind a login this script
+# does not hold, so the refusal names where it is.
+[ -n "$published" ] \
+  || die "$MANIFEST_URL did not answer the manifest of $TAG within 40 minutes (the last answer: ${answer:-none}). The build runs on the master's Tekton: its PipelineRun ansiwise-cli-publish-* on the Tekton Dashboard, https://tekton.master.digitacloud.app, says why"
+say "Zot holds the manifest of $TAG"
 
-assets="$(gh release view "$TAG" --json assets -q '[.assets[].name]|join(", ")' 2>/dev/null || true)"
-[ -n "$assets" ] || die "the release $TAG carries no binaries, so nothing may be pinned to it"
-say "binaries: $assets"
-
-# THE DIGESTS OF WHAT THIS RELEASE BUILT, as GitHub recorded them when the build uploaded each
-# asset. They are written beside the platform pin, in the same commit as the pin, or in a commit of
-# their own where the head already names the tag without them. A machine then holds what it fetches
-# against the bytes built here, and not against whatever the release serves by then. Sorted by
-# name, so a second run composes the same file the first one wrote.
+# THE DIGESTS OF WHAT THIS RELEASE BUILT, as Zot holds them in the manifest the publish pipeline
+# pushed. They are written beside the platform pin, in the same commit as the pin, or in a commit of
+# their own where the head already names the tag without them. A machine then fetches each binary
+# by its digest and holds it against the bytes built here.
 #
-# EVERY BINARY THE WORKFLOW PUBLISHES HAS TO STAND THERE ONCE, because every machine asks for each of
-# them by name and refuses a pin that lacks one. The names are the workflow's own BINARIES, read
-# rather than restated.
-binaries="$(awk '/^  BINARIES:/ { sub(/^  BINARIES:[ \t]*/, ""); print; exit }' .github/workflows/release.yml)"
-[ -n "$binaries" ] || die ".github/workflows/release.yml names no BINARIES, so the digests could not be held to them"
-if ! digests="$(gh release view "$TAG" --json assets \
-  -q '[.assets[] | {name, digest: ((.digest // "") | ltrimstr("sha256:"))}] | sort_by(.name) | .[] | .digest + "  " + .name' \
-  2>"$WORK/digests.err")"; then
-  said="$(head -1 "$WORK/digests.err" 2>/dev/null || true)"
-  die "the digests of $TAG could not be read (${said:-gh said nothing}), so nothing may be pinned to it"
-fi
-[ -n "$digests" ] || die "the release $TAG answers no digests for its binaries, so nothing may be pinned to it"
-while IFS= read -r line; do
-  [[ "$line" =~ ^[0123456789abcdef]{64}\ \ [^[:space:]]+$ ]] \
-    || die "the release $TAG answers no SHA-256 for every binary (${line:-an empty line}), so nothing may be pinned to it"
-done <<< "$digests"
-for binary in $binaries; do
-  [ "$(printf '%s\n' "$digests" | awk -v asset="$binary-$TAG-linux-x64" '$2 == asset' | grep -c .)" = 1 ] \
-    || die "the release $TAG does not answer exactly one digest for $binary-$TAG-linux-x64, so nothing may be pinned to it"
-done
+# manifest_digests stands in release/manifest_digests.sh, sourced at the head of this script. It
+# refuses a manifest that does not carry exactly one SHA-256 for every binary build.sh names, or
+# that carries anything else, and sorts the lines by title, so a second run composes the same file
+# the first one wrote. Written to a file rather than captured, so its refusal ends this script.
+# shellcheck disable=SC2086 # the binaries are words, split on purpose
+manifest_digests "$WORK/manifest.json" "$TAG" $binaries > "$WORK/digests"
+digests="$(cat "$WORK/digests")"
 say "digests: $(printf '%s\n' "$digests" | awk '{ printf "%s%s %s", (NR > 1 ? ", " : ""), $2, substr($1, 1, 12) }')"
 
 # ── the two pins downstream ──────────────────────────────────────────────────

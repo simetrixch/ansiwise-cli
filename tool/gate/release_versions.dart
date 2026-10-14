@@ -1,39 +1,32 @@
 /// What a release tag is made of, what order releases stand in, and what could be released next.
 ///
-/// A release of this repository IS a tag on origin: .github/workflows/release.yml triggers on a
-/// pushed tag and on nothing else, and the GitHub Release it then creates is named by that tag. So
-/// the tags are what is read, and WHICH OF THEM STARTS A RELEASE IS ASKED OF THE [TagFilter] read
-/// from that workflow — never decided here.
+/// A release of this repository IS a tag on origin: the publish pipeline on the owner's master
+/// builds the binaries on a pushed release tag, and Zot holds them under that tag. So the tags are
+/// what is read.
 ///
 /// THE TAG IS `<major>.<minor>.<patch>-<channel>-<ts14>`, one grammar for every release of
 /// everything, and the file that owns it is hostyour-manager/shared/release.ts:22. The ts14 is the
 /// UTC minute and second the tag was composed at, which is what makes two releases of one version on
 /// one channel two tags instead of one name pushed twice.
 ///
-/// WHAT THIS FILE STATES THAT NO FILTER COULD, and why that is not a second grammar. A GitHub tag
-/// filter is a glob: it has no alternation and `[...]` matches one alphanumeric character, so two
-/// things the grammar says cannot be written into `on.push.tags` at all. The first is that a number
-/// carries no leading zero — `0|[1-9][0-9]*` is unwritable — and [numbersRefusalFor] is the one
-/// place that closes it, because `01.2.3-stable-…` would be published here and then refused by
-/// hostyour-manager/shared/release.ts:22 as no release at all. The second is that alpha is less ripe
-/// than beta and beta less ripe than stable — [ReleaseChannel], after
-/// hostyour-manager/shared/release.ts:12 — which is what decides whether a release is marked as a
-/// pre-release. Neither answers "may this tag be pushed"; the filter answers that, on every run.
+/// WHAT THIS FILE STATES BESIDE THE SHAPE. [ReleasedTag.read] reads the shape of a tag, and two
+/// things the grammar says are not in that shape. The first is that a number carries no leading
+/// zero, and [numbersRefusalFor] is the one place that closes it, because `01.2.3-stable-…` would be
+/// stamped into a binary and then refused by hostyour-manager/shared/release.ts:22 as no release at
+/// all. The second is that alpha is less ripe than beta and beta less ripe than stable —
+/// [ReleaseChannel], after hostyour-manager/shared/release.ts:12 — which is what decides whether a
+/// release is a pre-release.
 ///
 /// A TAG THE PARTS CANNOT BE READ OUT OF IS CARRIED THROUGH, NOT DROPPED. Whoever is deciding a
 /// version has to see everything already standing on the remote, including the thing this file
 /// cannot place.
 library;
 
-import 'release_tag_filter.dart';
-
 /// The channels a release can be cut on, ordered by maturity — the ripest is the last.
 ///
 /// THE AUTHORITY IS hostyour-manager/shared/release.ts:12, and this is the maturity order it states,
-/// not a second copy of the tag grammar: which tags start a release is read from
-/// [releaseWorkflowPath] on every run and nothing here overrides it. What this ranking decides is
-/// what no glob can say — whether a release is a pre-release, and which environments the tag may
-/// then run in.
+/// not a second copy of the tag grammar. What this ranking decides is what the shape of a tag cannot
+/// say — whether a release is a pre-release, and which environments the tag may then run in.
 ///
 /// THE CEILING IS NOT ENFORCED HERE. hostyour-manager/shared/release.ts:8 states that the channel is
 /// a ceiling on which environment may run a tag and that the ceiling is enforced where deployments
@@ -93,22 +86,20 @@ String stampOf(DateTime at) {
 
 String _padded(int number, int digits) => number.toString().padLeft(digits, '0');
 
-/// Why [version] must not be released though a filter would admit it, or null when it may be.
+/// Why [version] must not be released though its shape reads as three numbers, or null when it may
+/// be.
 ///
-/// THE ONE THING THE GLOB CANNOT SAY. `[0-9]+` reads a number and no filter pattern can write
-/// `0|[1-9][0-9]*`, so `01.2.3` passes `on.push.tags` and is no version:
-/// hostyour-manager/shared/release.ts:22 refuses it, and a release published under a tag the
-/// platform cannot parse is a release nothing downstream can read. Everything else about the shape
-/// of a version — how many numbers, what stands between them — is left to the filter, so that no
-/// version is refused twice for one reason. A version wrong in more than one way is answered here
-/// first, because this refusal needs neither a file nor a clock, and by the filter on the next run.
+/// THE ONE THING `[0-9]+` CANNOT SAY. [ReleasedTag.read] reads each number as `[0-9]+`, so `01.2.3`
+/// reads and is no version: hostyour-manager/shared/release.ts:22 refuses it, and a binary stamped
+/// with a tag the platform cannot parse answers a release nothing downstream can read. Everything
+/// else about the shape of a version — how many numbers, what stands between them — is left to the
+/// reader of the shape, so that no version is refused twice for one reason.
 String? numbersRefusalFor(String version) {
   for (final String number in version.split('.')) {
     if (number.length > 1 && number.startsWith('0') && _readsAsANumber(number)) {
       return '"$version" is no version: "$number" carries a leading zero, and '
           'hostyour-manager/shared/release.ts:22 reads each number as 0 or a digit from 1 to 9 '
-          'followed by any digits. $releaseWorkflowPath cannot refuse this one — a filter pattern '
-          'has no alternation — so it is refused here';
+          'followed by any digits';
     }
   }
   return null;
@@ -117,12 +108,12 @@ String? numbersRefusalFor(String version) {
 /// Whether [segment] is the digits a number is written with and nothing else.
 ///
 /// A segment carrying anything but digits is not a number with a leading zero — it is a version the
-/// filter itself refuses, and the sentence above would name the wrong reason and then say the
-/// workflow cannot refuse it, which it can. `0.1.0+7` splits into `0`, `1`, `0+7`.
+/// reader of the shape refuses, and the sentence above would name the wrong reason. `0.1.0+7`
+/// splits into `0`, `1`, `0+7`.
 bool _readsAsANumber(String segment) =>
     segment.runes.every((int rune) => rune >= 0x30 && rune <= 0x39);
 
-/// A tag on origin the filter accepts, read into the parts a screen orders and marks it by.
+/// A release tag, read into the parts a screen orders and marks it by.
 final class ReleasedTag implements Comparable<ReleasedTag> {
   const ReleasedTag._({
     required this.tag,
@@ -136,9 +127,9 @@ final class ReleasedTag implements Comparable<ReleasedTag> {
   /// [tag] read into its parts, or null when they cannot be read out of it.
   ///
   /// The channel is read as whatever stands between the two hyphens and is NOT held to
-  /// [ReleaseChannel] here: a filter widened to a channel this program does not rank must show up as
-  /// a tag whose channel is unranked, and be refused by name where that matters, rather than be
-  /// dropped off the screen as though it had never been released.
+  /// [ReleaseChannel] here: a tag on a channel this program does not rank must show up as a tag
+  /// whose channel is unranked, and be refused by name where that matters, rather than be dropped
+  /// off the screen as though it had never been released.
   static ReleasedTag? read(String tag) {
     final RegExpMatch? match = _parts.firstMatch(tag);
     if (match == null) {
@@ -243,23 +234,6 @@ final class Releases {
   /// [releases] in ascending order, with [otherTags] holding what could not be placed as one.
   const Releases({required this.releases, required this.otherTags});
 
-  /// What [tags] are, asked of [filter] and of nothing else.
-  factory Releases.ofTags(Iterable<String> tags, {required TagFilter filter}) {
-    final List<ReleasedTag> releases = <ReleasedTag>[];
-    final List<String> otherTags = <String>[];
-    for (final String tag in tags) {
-      final ReleasedTag? released = filter.accepts(tag) ? ReleasedTag.read(tag) : null;
-      if (released == null) {
-        otherTags.add(tag);
-      } else {
-        releases.add(released);
-      }
-    }
-    releases.sort();
-    otherTags.sort();
-    return Releases(releases: releases, otherTags: otherTags);
-  }
-
   /// Every release, oldest first.
   final List<ReleasedTag> releases;
 
@@ -336,9 +310,8 @@ final class Releases {
 
 /// The version [pubspec] declares this package at, or null when it declares none.
 ///
-/// It is READ rather than restated for the same reason the filter is: pubspec.yaml is where this
-/// package states its own version, and a first release proposed from a number typed here as well
-/// would be two statements of one thing.
+/// It is READ rather than restated: pubspec.yaml is where this package states its own version, and a
+/// first release proposed from a number typed here as well would be two statements of one thing.
 String? declaredVersionIn(String pubspec) => _declaredVersion.firstMatch(pubspec)?.group(1)?.trim();
 
 /// [pubspec] with the version it declares set to [version], or null when it declares none.

@@ -2,7 +2,7 @@ import 'dart:io';
 
 /// Why suites that start ansiwise as a process are skipped on machines where it must not run.
 const String startsAnsiwiseReason =
-    'starts ansiwise as a process; skipped on this machine (ANSIWISE_TESTS_MAY_SKIP=1) and run by the release workflow on GitHub Actions';
+    'starts ansiwise as a process; skipped on this machine (ANSIWISE_TESTS_MAY_SKIP=1), and proven only where the gate runs without it';
 
 /// Answers whether suites that start ansiwise as a process should be skipped under [environment].
 ///
@@ -14,5 +14,5 @@ String? startsAnsiwiseSkipFor(Map<String, String> environment) =>
 ///
 /// On workstations where ansiwise must never be executed, setting the environment variable
 /// `ANSIWISE_TESTS_MAY_SKIP=1` causes tests that start the binary as a process to be skipped with this
-/// reason. The suites remain proven on GitHub Actions during the release workflow.
+/// reason. The suites are then proven only where the gate runs without this variable.
 final String? startsAnsiwiseSkip = startsAnsiwiseSkipFor(Platform.environment);
