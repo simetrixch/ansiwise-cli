@@ -5,14 +5,14 @@ import 'package:test/test.dart';
 import '../support/starts_ansiwise.dart';
 
 /// release-pin — the release stamps the programs pin and moves the CI's ansiwise-cli ref in ONE
-/// commit, under bash and under pwsh alike.
+/// commit.
 ///
 /// The programs repository's CI binds every program to the ansiwise-cli checkout its workflow
 /// names. A release that stamped the pin and left that ref behind sent the next push there to an
 /// older registry than the machines run, and a program using a new step went red.
 ///
-/// Each case runs against a bare origin in a temporary directory, and a missing bash, pwsh or git
-/// fails it: a skipped spelling is the one that drifted.
+/// Each case runs against a bare origin in a temporary directory, and a missing bash or git fails
+/// it.
 void main() {
   // SKIPPED WHERE THE REPOSITORY'S RULE SAYS SO, printed rather than passed over: every suite that
   // starts a process skips where ANSIWISE_TESTS_MAY_SKIP=1 (test/support_starts_ansiwise_test.dart).
@@ -39,134 +39,83 @@ void main() {
       '        with:\n'
       '          ref: 1111111111111111111111111111111111111111\n';
 
-  for (final _Spelling spelling in _Spelling.values) {
-    group(spelling.name, () {
-      test(
-        '(a) one commit names both files, the tag in the pin and the commit in the ref',
-        () async {
-          final _Origin origin = await _Origin.holding(<String, String>{
-            pin: pinFile('0.8.100-stable-20261001000000'),
-            workflow: workflowFile(ref: 'a' * 40),
-          });
-          final String before = await origin.head();
-
-          final ProcessResult ran = await spelling.writePin(origin, tag: tag, commit: commit);
-
-          expect(ran.exitCode, 0, reason: '${ran.stderr}');
-          expect(await origin.count('$before..HEAD'), 1);
-          expect(await origin.changedIn('HEAD'), <String>[workflow, pin]);
-          expect(await origin.show('HEAD', pin), contains('- ansiwise=$tag\n'));
-          final String moved = await origin.show('HEAD', workflow);
-          expect(moved, contains('repository: simetrixch/ansiwise-cli\n          ref: $commit\n'));
-          expect(moved, contains('ref: ${'1' * 40}'), reason: 'another checkout keeps its ref');
-        },
-      );
-
-      test(
-        '(b) a workflow with no ansiwise-cli ref is refused by name, origin unchanged',
-        () async {
-          final _Origin origin = await _Origin.holding(<String, String>{
-            pin: pinFile('0.8.100-stable-20261001000000'),
-            workflow: workflowFile(),
-          });
-          final String before = await origin.head();
-
-          final ProcessResult ran = await spelling.writePin(origin, tag: tag, commit: commit);
-
-          expect(ran.exitCode, 1);
-          expect('${ran.stderr}', contains(workflow));
-          expect(await origin.head(), before);
-        },
-      );
-
-      test('(c) a pin and a ref already standing write no commit', () async {
-        final _Origin origin = await _Origin.holding(<String, String>{
-          pin: pinFile(tag),
-          workflow: workflowFile(ref: commit),
-        });
-        final String before = await origin.head();
-
-        final ProcessResult ran = await spelling.writePin(origin, tag: tag, commit: commit);
-
-        expect(ran.exitCode, 0, reason: '${ran.stderr}');
-        expect(await origin.head(), before);
-      });
-
-      test('a pin standing without the ref still moves the ref', () async {
-        final _Origin origin = await _Origin.holding(<String, String>{
-          pin: pinFile(tag),
-          workflow: workflowFile(ref: 'a' * 40),
-        });
-        final String before = await origin.head();
-
-        final ProcessResult ran = await spelling.writePin(origin, tag: tag, commit: commit);
-
-        expect(ran.exitCode, 0, reason: '${ran.stderr}');
-        expect(await origin.count('$before..HEAD'), 1);
-        expect(await origin.changedIn('HEAD'), <String>[workflow]);
-      });
+  test('(a) one commit names both files, the tag in the pin and the commit in the ref', () async {
+    final _Origin origin = await _Origin.holding(<String, String>{
+      pin: pinFile('0.8.100-stable-20261001000000'),
+      workflow: workflowFile(ref: 'a' * 40),
     });
-  }
+    final String before = await origin.head();
 
-  test('both spellings say the same and exit the same, case by case', () async {
-    for (final Map<String, String> files in <Map<String, String>>[
-      <String, String>{
-        pin: pinFile('0.8.100-stable-20261001000000'),
-        workflow: workflowFile(ref: 'a' * 40),
-      },
-      <String, String>{pin: pinFile('0.8.100-stable-20261001000000'), workflow: workflowFile()},
-      <String, String>{pin: pinFile(tag), workflow: workflowFile(ref: commit)},
-    ]) {
-      final List<String> said = <String>[];
-      for (final _Spelling spelling in _Spelling.values) {
-        final _Origin origin = await _Origin.holding(files);
-        final ProcessResult ran = await spelling.writePin(origin, tag: tag, commit: commit);
-        said.add(
-          '${ran.exitCode}\n${'${ran.stdout}'.trim()}\n'
-          '${'${ran.stderr}'.trim().replaceAll(origin.clone, '<clone>')}',
-        );
-      }
-      expect(said.last, said.first);
-    }
+    final ProcessResult ran = await _writePin(origin, tag: tag, commit: commit);
+
+    expect(ran.exitCode, 0, reason: '${ran.stderr}');
+    expect(await origin.count('$before..HEAD'), 1);
+    expect(await origin.changedIn('HEAD'), <String>[workflow, pin]);
+    expect(await origin.show('HEAD', pin), contains('- ansiwise=$tag\n'));
+    final String moved = await origin.show('HEAD', workflow);
+    expect(moved, contains('repository: simetrixch/ansiwise-cli\n          ref: $commit\n'));
+    expect(moved, contains('ref: ${'1' * 40}'), reason: 'another checkout keeps its ref');
+  });
+
+  test('(b) a workflow with no ansiwise-cli ref is refused by name, origin unchanged', () async {
+    final _Origin origin = await _Origin.holding(<String, String>{
+      pin: pinFile('0.8.100-stable-20261001000000'),
+      workflow: workflowFile(),
+    });
+    final String before = await origin.head();
+
+    final ProcessResult ran = await _writePin(origin, tag: tag, commit: commit);
+
+    expect(ran.exitCode, 1);
+    expect('${ran.stderr}', contains(workflow));
+    expect(await origin.head(), before);
+  });
+
+  test('(c) a pin and a ref already standing write no commit', () async {
+    final _Origin origin = await _Origin.holding(<String, String>{
+      pin: pinFile(tag),
+      workflow: workflowFile(ref: commit),
+    });
+    final String before = await origin.head();
+
+    final ProcessResult ran = await _writePin(origin, tag: tag, commit: commit);
+
+    expect(ran.exitCode, 0, reason: '${ran.stderr}');
+    expect(await origin.head(), before);
+  });
+
+  test('a pin standing without the ref still moves the ref', () async {
+    final _Origin origin = await _Origin.holding(<String, String>{
+      pin: pinFile(tag),
+      workflow: workflowFile(ref: 'a' * 40),
+    });
+    final String before = await origin.head();
+
+    final ProcessResult ran = await _writePin(origin, tag: tag, commit: commit);
+
+    expect(ran.exitCode, 0, reason: '${ran.stderr}');
+    expect(await origin.count('$before..HEAD'), 1);
+    expect(await origin.changedIn('HEAD'), <String>[workflow]);
   });
 }
 
-/// The two spellings of the release, each calling its own write_pin alone.
-enum _Spelling {
-  bash,
-  pwsh;
-
-  /// Runs write_pin of this spelling on [origin]'s clone, as the release's programs call does.
-  Future<ProcessResult> writePin(_Origin origin, {required String tag, required String commit}) {
-    const String pinShape = r'[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}';
-    final String release = Directory('release').absolute.path;
-    return switch (this) {
-      _Spelling.bash => Process.run('bash', <String>[
-        '-c',
-        r'die() { echo "release: $*" >&2; exit 1; }; say() { echo "release: $*"; }; '
-            r'TAG="$1"; source "$2"; '
-            r'write_pin simetrixch/hostyour-deploy "$3" ansiwise/programs/deploy-cluster.yaml '
-            '"s|- ansiwise=$pinShape|- ansiwise=\$TAG|" "release: stamp" "" "" '
-            r'.github/workflows/tests.yml "$4"',
-        'write_pin',
-        tag,
-        '$release/write_pin.sh',
-        origin.clone,
-        commit,
-      ], environment: origin.environment),
-      _Spelling.pwsh => Process.run('pwsh', <String>[
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        'function Die([string] \$Message) { [Console]::Error.WriteLine("release: \$Message"); exit 1 }; '
-            'function Say([string] \$Message) { Write-Host "release: \$Message" }; '
-            "\$tag = '$tag'; . '$release/write_pin.ps1'; "
-            "Write-Pin 'simetrixch/hostyour-deploy' '${origin.clone}' "
-            "'ansiwise/programs/deploy-cluster.yaml' '- ansiwise=$pinShape' \"- ansiwise=\$tag\" "
-            "'release: stamp' -Workflow '.github/workflows/tests.yml' -Commit '$commit'; exit 0",
-      ], environment: origin.environment),
-    };
-  }
+/// Runs the release's write_pin on [origin]'s clone, as the release's programs call does.
+Future<ProcessResult> _writePin(_Origin origin, {required String tag, required String commit}) {
+  const String pinShape = r'[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}';
+  final String release = Directory('release').absolute.path;
+  return Process.run('bash', <String>[
+    '-c',
+    r'die() { echo "release: $*" >&2; exit 1; }; say() { echo "release: $*"; }; '
+        r'TAG="$1"; source "$2"; '
+        r'write_pin simetrixch/hostyour-deploy "$3" ansiwise/programs/deploy-cluster.yaml '
+        '"s|- ansiwise=$pinShape|- ansiwise=\$TAG|" "release: stamp" "" "" '
+        r'.github/workflows/tests.yml "$4"',
+    'write_pin',
+    tag,
+    '$release/write_pin.sh',
+    origin.clone,
+    commit,
+  ], environment: origin.environment);
 }
 
 /// A bare origin holding one commit, and the clone a release writes its pin in.
@@ -208,7 +157,7 @@ final class _Origin {
   /// The clone write_pin writes in.
   final String clone;
 
-  /// The environment every git and every spelling runs under.
+  /// The environment every git and the release's write_pin run under.
   final Map<String, String> environment;
 
   /// The commit origin's master stands on.

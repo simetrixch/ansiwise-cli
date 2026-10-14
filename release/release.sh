@@ -41,7 +41,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/write_pin.sh"
 # WHAT WAS NEVER FORESEEN STILL ENDS IN A SENTENCE. Every refusal in this script is one it went
 # looking for; this is the rest. Without it an unforeseen failure ends with whatever the failing
 # command said and nothing about where the release stopped — which is the promise at the top of this
-# file failing rather than being kept. The Windows twin's `catch` is this, and says the same words.
+# file failing rather than being kept.
 #
 # It fires where `set -e` fires and nowhere else, so a `grep -q ... && die` whose grep finds nothing
 # is left alone, as are every `|| die` and every `if !` below.

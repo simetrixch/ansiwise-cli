@@ -25,7 +25,6 @@ every one of them, and only then compiles the two binaries for linux-x64 and att
 is what a machine downloads. A part that is red stops the release before a binary exists.
 
     release/release.sh <x.y.z> <stable|beta|alpha>    cut a release, end to end
-    release/release.ps1 <x.y.z> <stable|beta|alpha>   the same on Windows
 
 The script waits at the build it started, and writes the two pins downstream — the engine version in
 hostyour-cloud and the tool stamp in the programs repository — only once the binaries exist. Beside
