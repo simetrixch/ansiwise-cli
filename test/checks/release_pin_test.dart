@@ -4,12 +4,12 @@ import 'package:test/test.dart';
 
 import '../support/starts_ansiwise.dart';
 
-/// release-pin — the release stamps the programs pin and moves the CI's ansiwise-cli ref in ONE
+/// release-pin — the release stamps the programs pin and moves the CI's ansiwise-cli commit in ONE
 /// commit.
 ///
-/// The programs repository's CI binds every program to the ansiwise-cli checkout its workflow
-/// names. A release that stamped the pin and left that ref behind sent the next push there to an
-/// older registry than the machines run, and a program using a new step went red.
+/// The programs repository's CI binds every program to the ansiwise-cli commit its ci-sources.json
+/// names. A release that stamped the pin and left that commit behind sent the next push there to
+/// an older registry than the machines run, and a program using a new step went red.
 ///
 /// Each case runs against a bare origin in a temporary directory, and a missing bash or git fails
 /// it.
@@ -23,26 +23,76 @@ void main() {
   const String tag = '0.8.200-stable-20261011000000';
   const String commit = 'c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00';
   const String pin = 'ansiwise/programs/deploy-cluster.yaml';
-  const String workflow = '.github/workflows/tests.yml';
+  const String sources = 'ci-sources.json';
 
   String pinFile(String version) => 'steps:\n  - packages:\n      - ansiwise=$version\n';
-  String workflowFile({String? ref}) =>
-      'jobs:\n'
-      '  tests:\n'
-      '    steps:\n'
-      '      - uses: actions/checkout@v7\n'
-      '        with:\n'
-      '          repository: simetrixch/ansiwise-cli\n'
-      '${ref == null ? '' : '          ref: $ref\n'}'
-      '          path: ansiwise-cli\n'
-      '      - uses: actions/checkout@v7\n'
-      '        with:\n'
-      '          ref: 1111111111111111111111111111111111111111\n';
+  String sourcesFile({String? commit}) =>
+      '{\n'
+      '  "git": {\n'
+      '    "hostyour-cloud": "1111111111111111111111111111111111111111"'
+      '${commit == null ? '' : ',\n    "ansiwise-cli": "$commit"'}\n'
+      '  }\n'
+      '}\n';
 
-  test('(a) one commit names both files, the tag in the pin and the commit in the ref', () async {
+  test(
+    '(a) one commit names both files, the tag in the pin and the commit in ci-sources.json',
+    () async {
+      final _Origin origin = await _Origin.holding(<String, String>{
+        pin: pinFile('0.8.100-stable-20261001000000'),
+        sources: sourcesFile(commit: 'a' * 40),
+      });
+      final String before = await origin.head();
+
+      final ProcessResult ran = await _writePin(origin, tag: tag, commit: commit);
+
+      expect(ran.exitCode, 0, reason: '${ran.stderr}');
+      expect(await origin.count('$before..HEAD'), 1);
+      expect(await origin.changedIn('HEAD'), <String>[pin, sources]);
+      expect(await origin.show('HEAD', pin), contains('- ansiwise=$tag\n'));
+      final String moved = await origin.show('HEAD', sources);
+      expect(moved, contains('"ansiwise-cli": "$commit"'));
+      expect(
+        moved,
+        contains('"hostyour-cloud": "${'1' * 40}"'),
+        reason: 'another source keeps its commit',
+      );
+    },
+  );
+
+  test(
+    '(b) a ci-sources.json that pins no ansiwise-cli is refused by name, origin unchanged',
+    () async {
+      final _Origin origin = await _Origin.holding(<String, String>{
+        pin: pinFile('0.8.100-stable-20261001000000'),
+        sources: sourcesFile(),
+      });
+      final String before = await origin.head();
+
+      final ProcessResult ran = await _writePin(origin, tag: tag, commit: commit);
+
+      expect(ran.exitCode, 1);
+      expect('${ran.stderr}', contains(sources));
+      expect(await origin.head(), before);
+    },
+  );
+
+  test('(c) a pin and a commit already standing write no commit', () async {
     final _Origin origin = await _Origin.holding(<String, String>{
-      pin: pinFile('0.8.100-stable-20261001000000'),
-      workflow: workflowFile(ref: 'a' * 40),
+      pin: pinFile(tag),
+      sources: sourcesFile(commit: commit),
+    });
+    final String before = await origin.head();
+
+    final ProcessResult ran = await _writePin(origin, tag: tag, commit: commit);
+
+    expect(ran.exitCode, 0, reason: '${ran.stderr}');
+    expect(await origin.head(), before);
+  });
+
+  test('a pin standing without the commit still moves the commit', () async {
+    final _Origin origin = await _Origin.holding(<String, String>{
+      pin: pinFile(tag),
+      sources: sourcesFile(commit: 'a' * 40),
     });
     final String before = await origin.head();
 
@@ -50,52 +100,7 @@ void main() {
 
     expect(ran.exitCode, 0, reason: '${ran.stderr}');
     expect(await origin.count('$before..HEAD'), 1);
-    expect(await origin.changedIn('HEAD'), <String>[workflow, pin]);
-    expect(await origin.show('HEAD', pin), contains('- ansiwise=$tag\n'));
-    final String moved = await origin.show('HEAD', workflow);
-    expect(moved, contains('repository: simetrixch/ansiwise-cli\n          ref: $commit\n'));
-    expect(moved, contains('ref: ${'1' * 40}'), reason: 'another checkout keeps its ref');
-  });
-
-  test('(b) a workflow with no ansiwise-cli ref is refused by name, origin unchanged', () async {
-    final _Origin origin = await _Origin.holding(<String, String>{
-      pin: pinFile('0.8.100-stable-20261001000000'),
-      workflow: workflowFile(),
-    });
-    final String before = await origin.head();
-
-    final ProcessResult ran = await _writePin(origin, tag: tag, commit: commit);
-
-    expect(ran.exitCode, 1);
-    expect('${ran.stderr}', contains(workflow));
-    expect(await origin.head(), before);
-  });
-
-  test('(c) a pin and a ref already standing write no commit', () async {
-    final _Origin origin = await _Origin.holding(<String, String>{
-      pin: pinFile(tag),
-      workflow: workflowFile(ref: commit),
-    });
-    final String before = await origin.head();
-
-    final ProcessResult ran = await _writePin(origin, tag: tag, commit: commit);
-
-    expect(ran.exitCode, 0, reason: '${ran.stderr}');
-    expect(await origin.head(), before);
-  });
-
-  test('a pin standing without the ref still moves the ref', () async {
-    final _Origin origin = await _Origin.holding(<String, String>{
-      pin: pinFile(tag),
-      workflow: workflowFile(ref: 'a' * 40),
-    });
-    final String before = await origin.head();
-
-    final ProcessResult ran = await _writePin(origin, tag: tag, commit: commit);
-
-    expect(ran.exitCode, 0, reason: '${ran.stderr}');
-    expect(await origin.count('$before..HEAD'), 1);
-    expect(await origin.changedIn('HEAD'), <String>[workflow]);
+    expect(await origin.changedIn('HEAD'), <String>[sources]);
   });
 }
 
@@ -109,7 +114,7 @@ Future<ProcessResult> _writePin(_Origin origin, {required String tag, required S
         r'TAG="$1"; source "$2"; '
         r'write_pin simetrixch/hostyour-deploy "$3" ansiwise/programs/deploy-cluster.yaml '
         '"s|- ansiwise=$pinShape|- ansiwise=\$TAG|" "release: stamp" "" "" '
-        r'.github/workflows/tests.yml "$4"',
+        r'ci-sources.json "$4"',
     'write_pin',
     tag,
     '$release/write_pin.sh',
