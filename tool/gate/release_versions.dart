@@ -1,90 +1,20 @@
-/// What a release tag is made of, what order releases stand in, and what could be released next.
+/// What a release tag is made of.
 ///
 /// A release of this repository IS a tag on origin: the publish pipeline on the owner's master
-/// builds the binaries on a pushed release tag, and Zot holds them under that tag. So the tags are
-/// what is read.
+/// builds the binaries on a pushed release tag, and Zot holds them under that tag. The binaries
+/// answer it through lib/release_stamp.dart, which tool/gate/release_stamp.dart writes only for a
+/// tag this file reads.
 ///
 /// THE TAG IS `<major>.<minor>.<patch>-<channel>-<ts14>`, one grammar for every release of
 /// everything, and the file that owns it is hostyour-manager/shared/release.ts:22. The ts14 is the
 /// UTC minute and second the tag was composed at, which is what makes two releases of one version on
 /// one channel two tags instead of one name pushed twice.
 ///
-/// WHAT THIS FILE STATES BESIDE THE SHAPE. [ReleasedTag.read] reads the shape of a tag, and two
-/// things the grammar says are not in that shape. The first is that a number carries no leading
-/// zero, and [numbersRefusalFor] is the one place that closes it, because `01.2.3-stable-…` would be
-/// stamped into a binary and then refused by hostyour-manager/shared/release.ts:22 as no release at
-/// all. The second is that alpha is less ripe than beta and beta less ripe than stable —
-/// [ReleaseChannel], after hostyour-manager/shared/release.ts:12 — which is what decides whether a
-/// release is a pre-release.
-///
-/// A TAG THE PARTS CANNOT BE READ OUT OF IS CARRIED THROUGH, NOT DROPPED. Whoever is deciding a
-/// version has to see everything already standing on the remote, including the thing this file
-/// cannot place.
+/// WHAT THIS FILE STATES BESIDE THE SHAPE. [ReleasedTag.read] reads the shape of a tag, and a
+/// number carries no leading zero, which that shape does not say: [numbersRefusalFor] is the one
+/// place that closes it, because `01.2.3-stable-…` would be stamped into a binary and then refused
+/// by hostyour-manager/shared/release.ts:22 as no release at all.
 library;
-
-/// The channels a release can be cut on, ordered by maturity — the ripest is the last.
-///
-/// THE AUTHORITY IS hostyour-manager/shared/release.ts:12, and this is the maturity order it states,
-/// not a second copy of the tag grammar. What this ranking decides is what the shape of a tag cannot
-/// say — whether a release is a pre-release, and which environments the tag may then run in.
-///
-/// THE CEILING IS NOT ENFORCED HERE. hostyour-manager/shared/release.ts:8 states that the channel is
-/// a ceiling on which environment may run a tag and that the ceiling is enforced where deployments
-/// are written, which is neither this program nor this repository.
-enum ReleaseChannel {
-  /// Reaches dev, and no further.
-  alpha,
-
-  /// Reaches test, and no further.
-  beta,
-
-  /// Reaches everywhere.
-  stable;
-
-  /// The channel spelled [name], or null when no channel is spelled that way.
-  static ReleaseChannel? named(String name) {
-    for (final ReleaseChannel channel in values) {
-      if (channel.name == name) {
-        return channel;
-      }
-    }
-    return null;
-  }
-
-  /// Every channel, spelled as a tag spells it, in the order they ripen.
-  static List<String> get spelled =>
-      values.map((ReleaseChannel each) => each.name).toList(growable: false);
-
-  /// Whether a release on this channel is a pre-release, which is every channel but the ripest.
-  bool get isPreRelease => this != values.last;
-
-  /// The channels this one has not ripened into yet, in the order they ripen.
-  List<ReleaseChannel> get riper => values.sublist(index + 1);
-
-  /// How far a tag on this channel may reach, as hostyour-manager/shared/release.ts:8 states it.
-  String get reaches => switch (this) {
-    ReleaseChannel.alpha => 'dev',
-    ReleaseChannel.beta => 'dev and test',
-    ReleaseChannel.stable => 'everywhere',
-  };
-}
-
-/// The tag that [version] on [channel] composes when it is stamped at [at].
-///
-/// The stamp is taken at the moment the tag is composed and never typed: two releases of one version
-/// on one channel are a real thing — the same code cut again from a later commit — and what tells
-/// them apart is when each was minted.
-String tagFor({required String version, required ReleaseChannel channel, required DateTime at}) =>
-    '$version-${channel.name}-${stampOf(at)}';
-
-/// [at] as the fourteen digits `yyyyMMddHHmmss` in UTC.
-String stampOf(DateTime at) {
-  final DateTime utc = at.toUtc();
-  return '${_padded(utc.year, 4)}${_padded(utc.month, 2)}${_padded(utc.day, 2)}'
-      '${_padded(utc.hour, 2)}${_padded(utc.minute, 2)}${_padded(utc.second, 2)}';
-}
-
-String _padded(int number, int digits) => number.toString().padLeft(digits, '0');
 
 /// Why [version] must not be released though its shape reads as three numbers, or null when it may
 /// be.
@@ -113,8 +43,8 @@ String? numbersRefusalFor(String version) {
 bool _readsAsANumber(String segment) =>
     segment.runes.every((int rune) => rune >= 0x30 && rune <= 0x39);
 
-/// A release tag, read into the parts a screen orders and marks it by.
-final class ReleasedTag implements Comparable<ReleasedTag> {
+/// A release tag, read into its parts.
+final class ReleasedTag {
   const ReleasedTag._({
     required this.tag,
     required this.major,
@@ -126,10 +56,9 @@ final class ReleasedTag implements Comparable<ReleasedTag> {
 
   /// [tag] read into its parts, or null when they cannot be read out of it.
   ///
-  /// The channel is read as whatever stands between the two hyphens and is NOT held to
-  /// [ReleaseChannel] here: a tag on a channel this program does not rank must show up as a tag
-  /// whose channel is unranked, and be refused by name where that matters, rather than be dropped
-  /// off the screen as though it had never been released.
+  /// The channel is read as whatever stands between the two hyphens and is NOT held to the three
+  /// channels here: hostyour-manager/shared/release.ts:12 ranks them, and a tag on another channel
+  /// is refused by name where that matters.
   static ReleasedTag? read(String tag) {
     final RegExpMatch? match = _parts.firstMatch(tag);
     if (match == null) {
@@ -165,163 +94,11 @@ final class ReleasedTag implements Comparable<ReleasedTag> {
   /// The third number.
   final int patch;
 
-  /// The channel as the tag spells it, whether or not [ReleaseChannel] ranks it.
+  /// The channel as the tag spells it.
   final String channelName;
 
   /// The `yyyyMMddHHmmss` this tag was minted at, as the tag spells it.
   final String stamp;
 
-  /// The channel this was released on, or null when nothing ranks the one it names.
-  ReleaseChannel? get channel => ReleaseChannel.named(channelName);
-
-  /// The three numbers on their own — `0.1.0` for `0.1.0-beta-20260821194500`.
-  String get version => '$major.$minor.$patch';
-
-  /// A fix to what this release does.
-  String get nextPatch => '$major.$minor.${patch + 1}';
-
-  /// Something this release did not do.
-  String get nextMinor => '$major.${minor + 1}.0';
-
-  /// A break with how this release was used.
-  String get nextMajor => '${major + 1}.0.0';
-
-  /// The numbers first, then when it was minted, then how ripe its channel is.
-  ///
-  /// The stamp is fourteen digits of fixed width, so comparing it as text IS comparing the moment it
-  /// was minted at. Which of two releases of one version is the later one is a question of when each
-  /// was cut and not of which channel it carries: a fix cut on alpha after a stable release is the
-  /// later release, and a screen claiming otherwise would propose from the wrong one.
-  @override
-  int compareTo(ReleasedTag other) {
-    for (final (int mine, int theirs) in <(int, int)>[
-      (major, other.major),
-      (minor, other.minor),
-      (patch, other.patch),
-    ]) {
-      final int decided = mine.compareTo(theirs);
-      if (decided != 0) {
-        return decided;
-      }
-    }
-    final int minted = stamp.compareTo(other.stamp);
-    if (minted != 0) {
-      return minted;
-    }
-    return (channel?.index ?? -1).compareTo(other.channel?.index ?? -1);
-  }
-
   static final RegExp _parts = RegExp(r'^([0-9]+)\.([0-9]+)\.([0-9]+)-([^-]+)-([0-9]+)$');
 }
-
-/// A version that could be typed next, and what makes it the obvious one.
-///
-/// The reason travels with the version because three numbers on their own say nothing about why they
-/// are being offered, and the person reading them is deciding rather than picking.
-final class Proposal {
-  /// [version] is proposed [because].
-  const Proposal({required this.version, required this.because});
-
-  /// What could be typed.
-  final String version;
-
-  /// Why it is offered.
-  final String because;
-}
-
-/// The tags standing on origin, sorted into what has been released and what could not be placed.
-final class Releases {
-  /// [releases] in ascending order, with [otherTags] holding what could not be placed as one.
-  const Releases({required this.releases, required this.otherTags});
-
-  /// Every release, oldest first.
-  final List<ReleasedTag> releases;
-
-  /// The tags on origin that would have started no release, and the ones whose parts this file
-  /// cannot read.
-  final List<String> otherTags;
-
-  /// The latest release, or null when nothing has been released.
-  ReleasedTag? get latest => releases.isEmpty ? null : releases.last;
-
-  /// Whether [tag] already stands on the remote, so that pushing it would be a second release of one
-  /// name.
-  bool holds(String tag) =>
-      releases.any((ReleasedTag each) => each.tag == tag) || otherTags.contains(tag);
-
-  /// The versions that could come next — offered, and none of them chosen.
-  ///
-  /// Nothing released yet is the first release, and the only version this repository states about
-  /// itself is the one pubspec.yaml declares it at, so [declaredVersion] is what is offered and
-  /// nothing is invented when there is none. After a pre-release the obvious next thing is the same
-  /// version on a riper channel, which under this grammar is a release of its own and not a rename
-  /// of the last one. After a release on the ripest channel there are three directions and no way
-  /// for a program to know which of them a change deserves — that is exactly the decision this
-  /// program refuses to take — so all three are shown and the person types one of them or something
-  /// else entirely.
-  List<Proposal> proposals({required String? declaredVersion}) {
-    final ReleasedTag? released = latest;
-    if (released == null) {
-      return <Proposal>[
-        if (declaredVersion != null)
-          Proposal(
-            version: declaredVersion,
-            because: 'the first release — the version pubspec.yaml declares this package at',
-          ),
-      ];
-    }
-    final ReleaseChannel? channel = released.channel;
-    if (channel == null) {
-      return <Proposal>[
-        Proposal(
-          version: released.version,
-          because:
-              'the version ${released.tag} carries — nothing ranks its channel '
-              '"${released.channelName}", so how ripe it is cannot be said here',
-        ),
-      ];
-    }
-    if (channel.isPreRelease) {
-      return <Proposal>[
-        Proposal(
-          version: released.version,
-          because:
-              'the version ${released.tag} is at — released on ${channel.name}, and not yet on '
-              '${released.channel!.riper.map((ReleaseChannel each) => each.name).join(' or ')}',
-        ),
-      ];
-    }
-    return <Proposal>[
-      Proposal(
-        version: released.nextPatch,
-        because: 'the next patch — a fix to what ${released.tag} does',
-      ),
-      Proposal(
-        version: released.nextMinor,
-        because: 'the next minor — something ${released.tag} did not do',
-      ),
-      Proposal(
-        version: released.nextMajor,
-        because: 'the next major — a break with how ${released.tag} was used',
-      ),
-    ];
-  }
-}
-
-/// The version [pubspec] declares this package at, or null when it declares none.
-///
-/// It is READ rather than restated: pubspec.yaml is where this package states its own version, and a
-/// first release proposed from a number typed here as well would be two statements of one thing.
-String? declaredVersionIn(String pubspec) => _declaredVersion.firstMatch(pubspec)?.group(1)?.trim();
-
-/// [pubspec] with the version it declares set to [version], or null when it declares none.
-///
-/// WHAT IS WRITTEN IS THE THREE NUMBERS AND NOT THE TAG. The release surface takes a version and a
-/// channel and never a whole tag — hostyour-manager/shared/release.ts:47 — and the version this file
-/// offers as the first release is read straight back out of here, so a manifest carrying
-/// `0.1.0-alpha-20260821194500` would propose a string nobody types as a version.
-String? pubspecWithVersion(String pubspec, String version) => _declaredVersion.hasMatch(pubspec)
-    ? pubspec.replaceFirst(_declaredVersion, 'version: $version')
-    : null;
-
-final RegExp _declaredVersion = RegExp(r'^version:[ \t]*(\S+)[ \t]*$', multiLine: true);
