@@ -54,9 +54,7 @@ String stampFor(Map<String, String> environment) {
   }
   // BOTH READERS, because neither is the whole grammar on its own. ReleasedTag.read answers the
   // SHAPE — three numbers, a channel, fourteen digits — and its own numbers are `[0-9]+`, which
-  // accepts a leading zero the platform's grammar forbids. numbersRefusalFor is what refuses that,
-  // and it is the same reader tool/release.dart holds a typed version against, so a tag this
-  // refuses here is a tag that could never have been released either.
+  // accepts a leading zero the platform's grammar forbids. numbersRefusalFor is what refuses that.
   if (ReleasedTag.read(stated) == null) {
     throw ReleaseStampRefused(
       '$releaseTagVariable is "$stated", which is no release tag: a tag is '
@@ -69,9 +67,8 @@ String stampFor(Map<String, String> environment) {
   if (numbersRefusalFor(stated) case final String refusal) {
     throw ReleaseStampRefused('$releaseTagVariable holds a tag that is no release: $refusal');
   }
-  // AND THE STAMP IS FOURTEEN DIGITS, which neither reader above says. ReleasedTag reads it as
-  // `[0-9]+` because it is ordering tags that a filter already admitted, and the filter cannot
-  // count either — `[0-9]+` is what a glob can write. The authority is
+  // AND THE STAMP IS FOURTEEN DIGITS, which neither reader above says: ReleasedTag reads it as
+  // `[0-9]+`. The authority is
   // hostyour-manager/shared/release.ts:22, `-([0-9]{14})$`, and a tag one digit short is a tag that
   // repository refuses: a binary stamped with it would answer a version the platform cannot read.
   if (ReleasedTag.read(stated)?.stamp.length != _stampDigits) {

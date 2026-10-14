@@ -34,10 +34,10 @@
 /// WHAT IT IS MADE OF LIVES IN package:ansiwise_checks_gate, and this file is the composition root.
 /// The gate was carried under tool/gate/ here and in ansiwise-core until eleven of the file names
 /// stood in both and five of them had drifted. Nothing about the ORDER of a run needed the copy —
-/// this program is started after the package it sits in has been resolved, by scripts/check.sh and
-/// by .github/workflows/release.yml alike, and the resolution the gate itself performs is the one
-/// over every package of the repository. What stays under tool/gate/ here is the RELEASE gate,
-/// which belongs to this product and to no other repository.
+/// this program is started after the package it sits in has been resolved, by scripts/check.sh,
+/// and the resolution the gate itself performs is the one over every package of the repository.
+/// What stays under tool/gate/ here is the RELEASE gate, which belongs to this product and to no
+/// other repository.
 library;
 
 import 'dart:io';

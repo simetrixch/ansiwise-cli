@@ -13,7 +13,7 @@ void main() {
     test('answers the skip reason when ANSIWISE_TESTS_MAY_SKIP is 1', () {
       expect(
         startsAnsiwiseSkipFor(const <String, String>{'ANSIWISE_TESTS_MAY_SKIP': '1'}),
-        'starts ansiwise as a process; skipped on this machine (ANSIWISE_TESTS_MAY_SKIP=1) and run by the release workflow on GitHub Actions',
+        'starts ansiwise as a process; skipped on this machine (ANSIWISE_TESTS_MAY_SKIP=1), and proven only where the gate runs without it',
       );
     });
 
