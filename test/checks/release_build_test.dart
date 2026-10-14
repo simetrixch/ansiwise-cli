@@ -17,9 +17,11 @@ import '../support/starts_ansiwise.dart';
 /// THE SDK IS A FAKE `dart` FIRST ON PATH. It answers `--version` with the version a case plants,
 /// does nothing for `pub get`, answers `run tool/ci.dart` green or red as a case plants, and for
 /// `run tool/build.dart <dir>` writes one script per binary that answers `--version` with the
-/// ANSIWISE_RELEASE_TAG it was built under. Every other `run` is handed to the real SDK, so the pin
-/// is held by the real tool/dart_version.dart and the real package:ansiwise_checks_gate. The
-/// binaries are the ones build.sh names on its BINARIES line, read here rather than restated.
+/// ANSIWISE_RELEASE_TAG it was built under. It refuses an absolute `<dir>`, as the real one fails on
+/// it: tool/build.dart compiles to a target relative to the package (BinaryBuild.to). Every other
+/// `run` is handed to the real SDK, so the pin is held by the real tool/dart_version.dart and the
+/// real package:ansiwise_checks_gate. The binaries are the ones build.sh names on its BINARIES line,
+/// read here rather than restated.
 ///
 /// BESIDE IT, A FAKE `git` AND A FAKE `uname`. The `git` clones a part as a tree whose
 /// scripts/check.sh is green, or red for the part a case plants; the `uname` answers `-sm` with the
@@ -313,6 +315,9 @@ case "$1" in
     if [ "$2" = tool/ci.dart ]; then
       [ "$FAKE_DART_GATE" = green ]
     elif [ "$2" = tool/build.dart ]; then
+      case "$3" in
+        /*) echo "fake dart: tool/build.dart compiles to a folder relative to the package (BinaryBuild.to), and $3 is absolute" >&2; exit 1 ;;
+      esac
       mkdir -p "$3"
       for binary in $FAKE_DART_BINARIES; do
         printf '#!/usr/bin/env bash\necho "%s"\n' "${FAKE_DART_ANSWER:-$ANSIWISE_RELEASE_TAG}" > "$3/$binary"

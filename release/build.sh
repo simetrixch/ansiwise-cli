@@ -68,7 +68,8 @@ OUT="$(cd "$OUT" && pwd)"
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+STAGE=""
+trap 'rm -rf "$WORK" ${STAGE:+"$STAGE"}' EXIT
 
 say "dart pub get"
 dart pub get || die "dart pub get could not resolve the parts pubspec.yaml names"
@@ -104,19 +105,23 @@ done <<< "$parts"
 say "dart run tool/ci.dart"
 dart run tool/ci.dart || die "tool/ci.dart is red at $TAG, and a red gate stops the release before a binary exists"
 
-ANSIWISE_RELEASE_TAG="$TAG" dart run tool/build.dart "$WORK/linux-x64" \
+# STAGED UNDER build/, A FOLDER OF ITS OWN: tool/build.dart compiles to a target relative to the
+# package (BinaryBuild.to) and fails on an absolute one, and .gitignore keeps build/ out of the tree.
+mkdir -p build
+STAGE="$(mktemp -d build/linux-x64.XXXXXX)"
+ANSIWISE_RELEASE_TAG="$TAG" dart run tool/build.dart "$STAGE" \
   || die "tool/build.dart did not build the binaries of $TAG"
 
 # ASKED OF THE BINARY ITSELF, because the stamp is compiled in and nothing after this can correct it.
 # Every binary is asked before any is moved, so a refusal leaves <out-dir> empty.
 for binary in $BINARIES; do
-  built="$WORK/linux-x64/$binary"
+  built="$STAGE/$binary"
   [ -f "$built" ] || die "tool/build.dart wrote no $binary"
   said="$("$built" --version)" || die "$binary did not answer --version"
   [ "$said" = "$TAG" ] || die "$binary answers \"$said\" and this release is $TAG"
   say "$binary answers $said"
 done
 for binary in $BINARIES; do
-  mv "$WORK/linux-x64/$binary" "$OUT/$binary-$TAG-linux-x64"
+  mv "$STAGE/$binary" "$OUT/$binary-$TAG-linux-x64"
   say "left $OUT/$binary-$TAG-linux-x64"
 done
