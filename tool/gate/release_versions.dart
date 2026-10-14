@@ -43,62 +43,22 @@ String? numbersRefusalFor(String version) {
 bool _readsAsANumber(String segment) =>
     segment.runes.every((int rune) => rune >= 0x30 && rune <= 0x39);
 
-/// A release tag, read into its parts.
+/// A release tag, read for the one part a reader asks of it: its stamp.
 final class ReleasedTag {
-  const ReleasedTag._({
-    required this.tag,
-    required this.major,
-    required this.minor,
-    required this.patch,
-    required this.channelName,
-    required this.stamp,
-  });
+  const ReleasedTag._(this.stamp);
 
-  /// [tag] read into its parts, or null when they cannot be read out of it.
+  /// [tag] read, or null when it does not have the shape of a release tag.
   ///
   /// The channel is read as whatever stands between the two hyphens and is NOT held to the three
   /// channels here: hostyour-manager/shared/release.ts:12 ranks them, and a tag on another channel
   /// is refused by name where that matters.
   static ReleasedTag? read(String tag) {
     final RegExpMatch? match = _parts.firstMatch(tag);
-    if (match == null) {
-      return null;
-    }
-    final List<int> numbers = <int>[
-      for (final int group in <int>[1, 2, 3])
-        if (match.group(group) case final String digits)
-          if (int.tryParse(digits) case final int number) number,
-    ];
-    if (numbers.length != 3) {
-      return null;
-    }
-    return ReleasedTag._(
-      tag: tag,
-      major: numbers[0],
-      minor: numbers[1],
-      patch: numbers[2],
-      channelName: match.group(4)!,
-      stamp: match.group(5)!,
-    );
+    return match == null ? null : ReleasedTag._(match.group(1)!);
   }
-
-  /// The tag as it stands on the remote.
-  final String tag;
-
-  /// The first number.
-  final int major;
-
-  /// The second number.
-  final int minor;
-
-  /// The third number.
-  final int patch;
-
-  /// The channel as the tag spells it.
-  final String channelName;
 
   /// The `yyyyMMddHHmmss` this tag was minted at, as the tag spells it.
   final String stamp;
 
-  static final RegExp _parts = RegExp(r'^([0-9]+)\.([0-9]+)\.([0-9]+)-([^-]+)-([0-9]+)$');
+  static final RegExp _parts = RegExp(r'^[0-9]+\.[0-9]+\.[0-9]+-[^-]+-([0-9]+)$');
 }
