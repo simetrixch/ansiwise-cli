@@ -78,7 +78,7 @@ PLATFORM_REPO="simetrixch/hostyour-cloud"
 PROGRAMS_REPO="simetrixch/hostyour-deploy"
 PLATFORM_PIN="clusters/platform/versions.yaml"
 PROGRAMS_PIN="ansiwise/programs/deploy-cluster.yaml"
-PROGRAMS_WORKFLOW=".github/workflows/tests.yml"
+PROGRAMS_SOURCES="ci-sources.json"
 PLATFORM_DIGESTS="clusters/platform/ansiwise.sha256"
 
 WORK="$(mktemp -d)"
@@ -315,7 +315,7 @@ RELEASE_COMMIT="$(git rev-parse "$TAG^{commit}")"
 write_pin "$PROGRAMS_REPO" "$WORK/programs" "$PROGRAMS_PIN" \
   "s|- ansiwise=[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}|- ansiwise=$TAG|" \
   "release: stamp the ansiwise $VERSION $CHANNEL pin into deploy-cluster" "" "" \
-  "$PROGRAMS_WORKFLOW" "$RELEASE_COMMIT"
-say "stamped ${PROGRAMS_REPO} ${PROGRAMS_PIN} and moved ${PROGRAMS_WORKFLOW} to $RELEASE_COMMIT"
+  "$PROGRAMS_SOURCES" "$RELEASE_COMMIT"
+say "stamped ${PROGRAMS_REPO} ${PROGRAMS_PIN} and moved ${PROGRAMS_SOURCES} to $RELEASE_COMMIT"
 
 say "DONE — $TAG is built, and every tree that names an engine names this one"

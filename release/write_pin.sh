@@ -23,37 +23,36 @@
 # naming no issue by. A temporary clone runs no hook, so nothing judges these two commits where they
 # are written; the subject is what lets the same line be pushed from a configured checkout.
 #
-# THE PROGRAMS' CI MOVES WITH THEIR PIN. The programs repository's workflow checks
-# out ansiwise-cli at a fixed commit and binds every program to that registry. Left behind, it binds
+# THE PROGRAMS' CI MOVES WITH THEIR PIN. The programs repository's ci-sources.json pins ansiwise-cli
+# at a fixed commit, and the master's ci binds every program to that registry. Left behind, it binds
 # them to an older engine than the machines run, and a program using a new step goes red there. So
-# a <workflow> given here has the `ref:` of its ansiwise-cli checkout moved to <release commit> in
-# the same commit as the pin, and a workflow carrying no such ref is refused as a missing pin is.
-write_pin() { # <repo> <clone> <file> <sed expression> <subject> [<file beside> <its lines> [<workflow> <release commit>]]
+# a <sources> file given here has the commit it pins ansiwise-cli at moved to <release commit> in
+# the same commit as the pin, and a file pinning no ansiwise-cli is refused as a missing pin is.
+write_pin() { # <repo> <clone> <file> <sed expression> <subject> [<file beside> <its lines> [<sources> <release commit>]]
   local repo="$1" clone="$2" file="$3" expression="$4" subject="$5" beside="${6:-}" lines="${7:-}"
-  local workflow="${8:-}" commit="${9:-}" attempt
+  local sources="${8:-}" commit="${9:-}" attempt
   for attempt in 1 2; do
     git -C "$clone" fetch --quiet origin \
       || die "${repo} could not be fetched, so this release could not write its pin onto its head"
     git -C "$clone" reset --hard --quiet '@{upstream}' \
       || die "${repo} could not be brought to its head, so this release could not write its pin"
     # A PIN THE HEAD ALREADY CARRIES IS WRITTEN, whoever wrote it, when the file beside it carries
-    # these lines too, and the workflow this commit. Reached where a push landed and still reported a failure, and where a person
+    # these lines too, and the sources file this commit. Reached where a push landed and still reported a failure, and where a person
     # wrote the line by hand. Without this the attempt below reaches `commit -a` with nothing to
     # commit and the release refuses a pin that is on origin.
     if grep -qF "$TAG" "$clone/$file" \
       && { [ -z "$beside" ] || [ "$(cat "$clone/$beside" 2>/dev/null)" = "$lines" ]; } \
-      && { [ -z "$workflow" ] || grep -qF "ref: $commit" "$clone/$workflow"; }; then
+      && { [ -z "$sources" ] || grep -qE "\"ansiwise-cli\": *\"$commit\"" "$clone/$sources"; }; then
       say "${repo} ${file} already names $TAG"
       return 0
     fi
     sed -i -E "$expression" "$clone/$file"
     grep -qF "$TAG" "$clone/$file" \
       || die "${repo} ${file} carries no pin this release could write"
-    if [ -n "$workflow" ]; then
-      sed -i -E "/repository: simetrixch\/ansiwise-cli\$/{n;s|^( *ref: )[0-9a-f]{40}\$|\1${commit}|}" \
-        "$clone/$workflow"
-      grep -qF "ref: $commit" "$clone/$workflow" \
-        || die "${repo} ${workflow} carries no ansiwise-cli ref this release could write"
+    if [ -n "$sources" ]; then
+      sed -i -E "s|(\"ansiwise-cli\": *\")[0-9a-f]{40}(\")|\1${commit}\2|" "$clone/$sources"
+      grep -qE "\"ansiwise-cli\": *\"$commit\"" "$clone/$sources" \
+        || die "${repo} ${sources} pins no ansiwise-cli this release could write"
     fi
     if [ -n "$beside" ]; then
       printf '%s\n' "$lines" > "$clone/$beside"
