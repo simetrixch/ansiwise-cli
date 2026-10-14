@@ -9,9 +9,10 @@
 # `zot.master.digitacloud.app/simetrixch/ansiwise-cli:<tag>`. release/release.sh then reads the
 # digests a release pins out of that manifest. A person can run it the same way.
 #
-# WHAT IT REFUSES, each before the next step: a tag outside the release grammar, an <out-dir>
-# already holding a file, a Dart other than the gate's pin, and a binary that does not answer the
-# tag it was built at. A refusal leaves <out-dir> without a binary, so nothing is published.
+# WHAT IT REFUSES, each before the next step: a tag outside the release grammar, a host that is not
+# linux-x64, an <out-dir> already holding a file, a Dart other than the gate's pin, and a binary
+# that does not answer the tag it was built at. A refusal leaves <out-dir> without a binary, so
+# nothing is published.
 #
 # WHAT IT LEAVES. In <out-dir> exactly one file per binary, named `<binary>-<tag>-linux-x64`, and
 # nothing else, because every file there becomes a layer of the release and a machine fetches each
@@ -40,6 +41,13 @@ OUT="${2:-}"
 # channel of the three, and the fourteen digits of the UTC moment the tag was minted at.
 [[ "$TAG" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-(alpha|beta|stable)-[0-9]{14}$ ]] \
   || die "'$TAG' is no release tag: a release tag is <x.y.z>-<alpha|beta|stable>-<14 digits>, with no leading zero"
+
+# THE HOST BUILDS WHAT IT IS: `dart compile exe` compiles for the machine it runs on, and every
+# binary is named and fetched as linux-x64. Built anywhere else, a machine would be placed files it
+# cannot run, under a name that says it can.
+host="$(uname -sm)" || die "uname -sm did not answer"
+[ "$host" = "Linux x86_64" ] \
+  || die "this host is $host, and the binaries are linux-x64: dart compile exe builds for the host it runs on, so build on Linux x86_64"
 
 if [ -e "$OUT" ]; then
   [ -d "$OUT" ] || die "$OUT is not a directory"

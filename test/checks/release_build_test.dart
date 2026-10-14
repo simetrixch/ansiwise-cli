@@ -8,21 +8,24 @@ import '../support/starts_ansiwise.dart';
 /// release-build — release/build.sh refuses what would publish a binary nobody may pin.
 ///
 /// The publish pipeline on the owner's master runs release/build.sh on the release tag and pushes
-/// every file it leaves in its output directory to Zot. So the script refuses a tag outside the
-/// release grammar, a Dart other than the gate's pin, and a binary that does not answer the tag,
-/// and it leaves one file per binary and nothing else.
+/// every file it leaves in its output directory to Zot, and a cold installation of the owner's
+/// master runs it on the operator's machine. So the script refuses a host that is not linux-x64, a
+/// tag outside the release grammar, a Dart other than the gate's pin, and a binary that does not
+/// answer the tag, and it leaves one file per binary and nothing else.
 ///
 /// THE SDK IS A FAKE `dart` FIRST ON PATH. It answers `--version` with the version a case plants,
 /// does nothing for `pub get`, and for `run tool/build.dart <dir>` writes one script per binary
 /// that answers `--version` with the ANSIWISE_RELEASE_TAG it was built under. Every other `run` is
 /// handed to the real SDK, so the pin is held by the real tool/dart_version.dart and the real
 /// package:ansiwise_checks_gate. The binaries are the ones build.sh names on its BINARIES line, read
-/// here rather than restated.
+/// here rather than restated. Beside it, a fake `uname` answers `-sm` with the host a case plants.
 ///
-/// THE PLANTED INNOCENT is case (a): the pinned Dart and a release tag, which must leave exactly
-/// `<binary>-<tag>-linux-x64` per binary. THE PLANTED DEFECTS are (b) another Dart, refused before
-/// anything is built; (c) tags outside the grammar, refused before any Dart is asked; (d) a binary
-/// answering another tag; and (e) an output directory already holding a file.
+/// THE PLANTED INNOCENT is case (a): a linux-x64 host, the pinned Dart and a release tag, which must
+/// leave exactly `<binary>-<tag>-linux-x64` per binary. THE PLANTED DEFECTS are (b) another Dart,
+/// refused before anything is built; (c) tags outside the grammar, refused before any Dart is
+/// asked; (d) a binary answering another tag; (e) an output directory already holding a file; and
+/// (f) a host that is not linux-x64, whose binaries would be named for a machine they cannot run
+/// on, refused before anything is fetched.
 void main() {
   // SKIPPED WHERE THE REPOSITORY'S RULE SAYS SO, printed rather than passed over: every suite that
   // starts a process skips where ANSIWISE_TESTS_MAY_SKIP=1 (test/support_starts_ansiwise_test.dart).
@@ -115,6 +118,19 @@ void main() {
     expect(build.calls(), isEmpty);
     expect(build.produced(), <String>['stray']);
   });
+
+  for (final String host in <String>['Darwin arm64', 'Darwin x86_64', 'Linux aarch64']) {
+    test('(f) defect: the host "$host" is refused before anything is fetched', () async {
+      final _Build build = await _Build.prepare(dart: dartVersion, binaries: binaries, host: host);
+
+      final ProcessResult ran = await build.run(tag);
+
+      expect(ran.exitCode, isNot(0));
+      expect('${ran.stderr}', allOf(contains(host), contains('Linux x86_64')));
+      expect(build.calls(), isEmpty);
+      expect(build.produced(), isEmpty);
+    });
+  }
 }
 
 /// The binaries release/build.sh names on its one `BINARIES="..."` line.
@@ -129,28 +145,36 @@ List<String> _binariesOfBuildScript() {
   return line.group(1)!.split(' ').where((String each) => each.isNotEmpty).toList();
 }
 
-/// A temporary directory holding a fake `dart`, its log, and the output directory build.sh fills.
+/// A temporary directory holding a fake `dart` and `uname`, the log, and the output directory
+/// build.sh fills.
 final class _Build {
   _Build._(this.root, this.environment);
 
   /// A fake SDK answering [dart] to `--version`, whose build writes [binaries] answering [answer],
-  /// or the tag they were built under where [answer] is null.
+  /// or the tag they were built under where [answer] is null, and a host answering [host].
   static Future<_Build> prepare({
     required String dart,
     required List<String> binaries,
     String? answer,
+    String host = 'Linux x86_64',
   }) async {
     final Directory root = await Directory.systemTemp.createTemp('release-build-');
     addTearDown(() => root.delete(recursive: true));
     Directory('${root.path}/sdk').createSync();
-    final File fake = File('${root.path}/sdk/dart')..writeAsStringSync(_fakeDart);
-    Process.runSync('chmod', <String>['+x', fake.path]);
+    for (final MapEntry<String, String> fake in <String, String>{
+      'dart': _fakeDart,
+      'uname': _fakeUname,
+    }.entries) {
+      final File file = File('${root.path}/sdk/${fake.key}')..writeAsStringSync(fake.value);
+      Process.runSync('chmod', <String>['+x', file.path]);
+    }
     return _Build._(root.path, <String, String>{
       'PATH': '${root.path}/sdk:${Platform.environment['PATH']}',
       'FAKE_DART_LOG': '${root.path}/calls',
       'FAKE_DART_VERSION': dart,
       'FAKE_DART_BINARIES': binaries.join(' '),
       'FAKE_DART_ANSWER': answer ?? '',
+      'FAKE_HOST': host,
       'REAL_DART': Platform.resolvedExecutable,
     });
   }
@@ -210,4 +234,10 @@ case "$1" in
     exit 99
     ;;
 esac
+''';
+
+/// The fake `uname`, answering `-sm` with the host [_Build] plants.
+const String _fakeUname = r'''#!/usr/bin/env bash
+[ "$*" = -sm ] || { echo "fake uname: no answer for: $*" >&2; exit 99; }
+echo "$FAKE_HOST"
 ''';
