@@ -62,9 +62,8 @@ resolved-packages: test/checks/resolved_packages_test.dart
 # not build and has to write into two repositories that are not this one. Tying it to the
 # toolchain this package pins stops the gate outright: a workstation one patch version ahead
 # makes tool/ci.dart refuse every run, and a release is then cut with nothing judging it at all.
-# Only its write_pin, a file of its own in both spellings, is judged here: the programs pin and
-# the programs' CI ref land in one commit, a workflow with no ansiwise-cli ref is refused, and
-# bash and pwsh say the same.
+# Only its write_pin, a file of its own, is judged here: the programs pin and the programs' CI
+# ref land in one commit, and a workflow with no ansiwise-cli ref is refused.
 release-pin: test/checks/release_pin_test.dart
 # Every dependency this package resolves out of git names a release tag and never a branch. A
 # package of this family produces no file, so whoever resolves one gets the tree standing at the ref
