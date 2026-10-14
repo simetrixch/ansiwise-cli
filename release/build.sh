@@ -10,9 +10,16 @@
 # digests a release pins out of that manifest. A person can run it the same way.
 #
 # WHAT IT REFUSES, each before the next step: a tag outside the release grammar, a host that is not
-# linux-x64, an <out-dir> already holding a file, a Dart other than the gate's pin, and a binary
-# that does not answer the tag it was built at. A refusal leaves <out-dir> without a binary, so
-# nothing is published.
+# linux-x64, an <out-dir> already holding a file, a Dart other than the gate's pin, a part whose
+# gate is red at the commit pubspec.yaml names, this repository's gate red, and a binary that does
+# not answer the tag it was built at. A refusal leaves <out-dir> without a binary, so nothing is
+# published.
+#
+# THE GATE OVER EVERY PART RUNS HERE, BEFORE THE BUILD. ansiwise-core, ansiwise-plugins and
+# ansiwise-checks are cloned side by side at the commits pubspec.yaml names, and each runs its own
+# scripts/check.sh; then this repository runs tool/ci.dart. A part that is red stops the release
+# before a binary exists: the commits release/release.sh writes into pubspec.yaml are judged
+# together here, and never trusted because each part's own ci saw them green alone.
 #
 # WHAT IT LEAVES. In <out-dir> exactly one file per binary, named `<binary>-<tag>-linux-x64`, and
 # nothing else, because every file there becomes a layer of the release and a machine fetches each
@@ -22,8 +29,8 @@
 # is how the binaries answer it. The pipeline's clone is thrown away; a person's checkout shows the
 # change afterwards.
 #
-# NO GITHUB SERVICE. Nothing here asks GitHub for anything but git: `dart pub get` clones the parts
-# pubspec.yaml names, at the commits it names.
+# NO GITHUB SERVICE. Nothing here asks GitHub for anything but git: `dart pub get` and the gate
+# clone the parts pubspec.yaml names, at the commits it names.
 set -Eeuo pipefail
 
 # THE BINARIES OF A RELEASE, on one line that release/release.sh reads rather than restates: it
@@ -72,6 +79,30 @@ dart pub get || die "dart pub get could not resolve the parts pubspec.yaml names
 answered="$(dart --version 2>&1)" || die "dart --version did not answer"
 dart run tool/dart_version.dart "$answered" || exit 1
 say "${answered%% (*}, the gate's pin"
+
+# THE PARTS, at the commits pubspec.yaml names, each once. A part named at two commits is refused,
+# because which of the two the binary holds is then not one answer.
+parts="$(awk '
+  $1 == "git:" { url = ""; ref = ""; open = 1; next }
+  open && $1 == "url:" { url = $2 }
+  open && $1 == "ref:" { ref = $2 }
+  open && url != "" && ref != "" { print url, ref; open = 0 }
+' pubspec.yaml | LC_ALL=C sort -u)"
+[ -n "$parts" ] || die "pubspec.yaml names no part by a git url and ref"
+mkdir "$WORK/parts"
+while read -r url ref; do
+  part="${url##*/}"
+  part="${part%.git}"
+  [ ! -e "$WORK/parts/$part" ] || die "pubspec.yaml names $part at two commits"
+  say "$part at $ref"
+  git clone --quiet "$url" "$WORK/parts/$part" || die "$url could not be cloned"
+  git -C "$WORK/parts/$part" checkout --quiet --detach "$ref" || die "$part has no commit $ref"
+  (cd "$WORK/parts/$part" && bash scripts/check.sh) \
+    || die "$part is red at $ref, and a red part stops the release before a binary exists"
+done <<< "$parts"
+
+say "dart run tool/ci.dart"
+dart run tool/ci.dart || die "tool/ci.dart is red at $TAG, and a red gate stops the release before a binary exists"
 
 ANSIWISE_RELEASE_TAG="$TAG" dart run tool/build.dart "$WORK/linux-x64" \
   || die "tool/build.dart did not build the binaries of $TAG"

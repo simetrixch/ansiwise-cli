@@ -21,10 +21,11 @@ A release of this repository names the commit of each it was built from, and `re
 writes those commits before it mints anything.
 
 On the release tag the publish pipeline on the owner's master clones this repository at the tag and
-runs `release/build.sh`, which compiles the two binaries for linux-x64 and refuses a Dart other than
-the gate's pin and a binary that does not answer the tag. The pipeline pushes them as one manifest
-to Zot, `zot.master.digitacloud.app/simetrixch/ansiwise-cli:<tag>`, which is what a machine
-downloads.
+runs `release/build.sh`. It loads the three parts at those commits, runs each part's gate and then
+this repository's, and only then compiles the two binaries for linux-x64 on a linux-x64 host; it
+refuses a Dart other than the gate's pin and a binary that does not answer the tag. A part that is
+red stops the release before a binary exists. The pipeline pushes the binaries as one manifest to
+Zot, `zot.master.digitacloud.app/simetrixch/ansiwise-cli:<tag>`, which is what a machine downloads.
 
     release/release.sh <x.y.z> <stable|beta|alpha>    cut a release, end to end
     bash release/build.sh <tag> <out-dir>              build the binaries of one tag

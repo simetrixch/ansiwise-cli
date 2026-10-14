@@ -71,10 +71,10 @@ release-pin: test/checks/release_pin_test.dart
 # not SHA-256, a layer of another tag or a binary twice is refused before anything is pinned.
 release-digests: test/checks/release_digests_test.dart
 # release/build.sh is what the publish pipeline runs on the tag, and every file it leaves is
-# published. It refuses a tag outside the release grammar, a host that is not linux-x64 and a Dart
-# other than the gate's pin before it builds, and a binary that does not answer the tag before it
-# leaves one — asked here of a stand-in SDK and uname on the PATH, since nothing else runs the
-# script before a release does.
+# published. It refuses a tag outside the release grammar, a host that is not linux-x64, a Dart
+# other than the gate's pin and a red gate of any part or of this repository before it builds, and
+# a binary that does not answer the tag before it leaves one — asked here of a stand-in SDK, git
+# and uname on the PATH, since nothing else runs the script before a release does.
 release-build: test/checks/release_build_test.dart
 # The binaries are built in the publish pipeline and held in Zot, so a script under release/ that
 # names the gh command, a workflow file, the GitHub API, raw file hosting or a release download
