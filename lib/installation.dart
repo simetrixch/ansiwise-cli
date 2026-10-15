@@ -382,8 +382,8 @@ Future<Installation> openInstallation({
 /// What the file at [path] says the caller supplied, or nothing when no file was named.
 ///
 /// A PATH and not the values themselves. A credential handed on the command line stands in the
-/// process listing for every account on the machine, and `Command` has no standard input by design —
-/// so the one thing that crosses argv here is where to read, never what was read.
+/// process listing for every account on the machine, so the one thing that crosses argv here is
+/// where to read, never what was read.
 ///
 /// **The shape is an envelope, and it is the same one `POST /runs` takes.** The answers stand under
 /// `answers`, and `elevation_password` beside them carries what raises a command to root where the
