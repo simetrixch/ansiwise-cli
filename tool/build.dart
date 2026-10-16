@@ -44,7 +44,7 @@ Future<void> main(List<String> arguments) async {
     stamp = stampFor(Platform.environment);
   } on ReleaseStampRefused catch (refused) {
     // Read as a failure of this build and not as a crash of it. The value came from an environment
-    // a person or a workflow set, and what they need is the sentence saying which value and why.
+    // a person or `ansiwise-cli-publish` set, and what they need is the sentence saying which value and why.
     stderr.writeln('build: FAIL — $refused');
     exit(2);
   }

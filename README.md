@@ -20,8 +20,11 @@ Those three are passive parts: they carry no version, cut no tag, publish nothin
 A release of this repository names the commit of each it was built from, and `release/release.sh`
 writes those commits before it mints anything.
 
-On the release tag the publish pipeline on the owner's master clones this repository at the tag and
-runs `release/build.sh`. It loads the three parts at those commits, runs each part's gate and then
+On the release tag the Trigger `github-release-publish` of the owner's master (hostyour-cloud
+`clusters/inventories/image-builder/templates/triggers/github-release-publish.yaml`) starts the
+publish pipeline `ansiwise-cli-publish` (hostyour-cloud
+`clusters/inventories/consumer-build/templates/pipeline-publish.yaml`), which clones this repository
+at the tag and runs `release/build.sh`. It loads the three parts at those commits, runs each part's gate and then
 this repository's, and only then compiles the two binaries for linux-x64 on a linux-x64 host; it
 refuses a Dart other than the gate's pin and a binary that does not answer the tag. A part that is
 red stops the release before a binary exists. The pipeline pushes the binaries as one manifest to
@@ -39,3 +42,14 @@ release that lacks a digest for any binary release/build.sh builds is refused be
 
     dart run tool/ci.dart               the gate, on this machine
     ansiwise <program> --mode test|dry|run
+
+`release/release.sh` is the operator's command and the only one that mints a release of this
+repository: the Manager does not call it.
+
+The ci of this repository is the master's Tekton pipeline `ansiwise-cli-ci` (hostyour-cloud
+`clusters/inventories/consumer-build/templates/pipeline-ci.yaml`). It installs the Dart that
+`ci-tools.json` names and runs `scripts/check.sh` on a push of the default branch or of a branch whose
+name starts with `ci/` (the Trigger `github-ci-push`, hostyour-cloud
+`clusters/inventories/image-builder/templates/triggers/github-ci-push.yaml`). Its runs are the
+PipelineRuns `ansiwise-cli-ci-*` in the namespace `ansiwise-cli-build`, and it sets the commit status
+`tekton/ci`.
