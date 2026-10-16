@@ -65,6 +65,12 @@ resolved-packages: test/checks/resolved_packages_test.dart
 # Its write_pin, a file of its own, is judged here: the programs pin and the commit of
 # ansiwise-cli in the programs' ci-sources.json land in one commit, and a file pinning none is refused.
 release-pin: test/checks/release_pin_test.dart
+# `ai-core status-sync` counts a commit of the programs repository as released only when a tag
+# carries it, so the release sets its own tag on the commit that carries the pin, pushes it and
+# reads it back from origin. Asked of tag_pin alone, and of release.sh over stand-ins of every
+# repository it writes to: a stamp left untagged, a tag standing on another commit and an origin
+# that refuses the tag each stop the release by name.
+release-tag: test/checks/release_tag_test.dart
 # The digests the release pins beside the engine version are read out of the manifest Zot holds for
 # the tag, by release/manifest_digests.sh, a file of its own that release.sh sources. A machine is
 # placed only the bytes those lines name, so a manifest missing a binary, carrying a digest that is
