@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../support/bare_origin.dart';
 import '../support/starts_ansiwise.dart';
 
 /// release-pin — the release stamps the programs pin and moves the CI's ansiwise-cli commit in ONE
@@ -37,7 +38,7 @@ void main() {
   test(
     '(a) one commit names both files, the tag in the pin and the commit in ci-sources.json',
     () async {
-      final _Origin origin = await _Origin.holding(<String, String>{
+      final BareOrigin origin = await BareOrigin.holding(<String, String>{
         pin: pinFile('0.8.100-stable-20261001000000'),
         sources: sourcesFile(commit: 'a' * 40),
       });
@@ -62,7 +63,7 @@ void main() {
   test(
     '(b) a ci-sources.json that pins no ansiwise-cli is refused by name, origin unchanged',
     () async {
-      final _Origin origin = await _Origin.holding(<String, String>{
+      final BareOrigin origin = await BareOrigin.holding(<String, String>{
         pin: pinFile('0.8.100-stable-20261001000000'),
         sources: sourcesFile(),
       });
@@ -77,7 +78,7 @@ void main() {
   );
 
   test('(c) a pin and a commit already standing write no commit', () async {
-    final _Origin origin = await _Origin.holding(<String, String>{
+    final BareOrigin origin = await BareOrigin.holding(<String, String>{
       pin: pinFile(tag),
       sources: sourcesFile(commit: commit),
     });
@@ -90,7 +91,7 @@ void main() {
   });
 
   test('a pin standing without the commit still moves the commit', () async {
-    final _Origin origin = await _Origin.holding(<String, String>{
+    final BareOrigin origin = await BareOrigin.holding(<String, String>{
       pin: pinFile(tag),
       sources: sourcesFile(commit: 'a' * 40),
     });
@@ -105,7 +106,7 @@ void main() {
 }
 
 /// Runs the release's write_pin on [origin]'s clone, as the release's programs call does.
-Future<ProcessResult> _writePin(_Origin origin, {required String tag, required String commit}) {
+Future<ProcessResult> _writePin(BareOrigin origin, {required String tag, required String commit}) {
   const String pinShape = r'[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}';
   final String release = Directory('release').absolute.path;
   return Process.run('bash', <String>[
@@ -121,82 +122,4 @@ Future<ProcessResult> _writePin(_Origin origin, {required String tag, required S
     origin.clone,
     commit,
   ], environment: origin.environment);
-}
-
-/// A bare origin holding one commit, and the clone a release writes its pin in.
-final class _Origin {
-  _Origin._(this.bare, this.clone, this.environment);
-
-  /// A new origin whose master holds [files], with a clone of it standing on master.
-  static Future<_Origin> holding(Map<String, String> files) async {
-    final Directory root = await Directory.systemTemp.createTemp('release-pin-');
-    addTearDown(() => root.delete(recursive: true));
-    final File config = File('${root.path}/gitconfig')
-      ..writeAsStringSync('[user]\n\tname = release\n\temail = release@example.org\n');
-    final Map<String, String> environment = <String, String>{
-      // The machine's own git configuration stays out: a global hooks path would run a push gate on
-      // a push into a temporary directory.
-      'GIT_CONFIG_GLOBAL': config.path,
-      'GIT_CONFIG_NOSYSTEM': '1',
-    };
-    final String bare = '${root.path}/origin.git';
-    final String seed = '${root.path}/seed';
-    final String clone = '${root.path}/clone';
-    await _git(<String>['init', '--quiet', '--bare', '--initial-branch=master', bare], environment);
-    await _git(<String>['clone', '--quiet', bare, seed], environment);
-    for (final MapEntry<String, String> each in files.entries) {
-      File('$seed/${each.key}')
-        ..createSync(recursive: true)
-        ..writeAsStringSync(each.value);
-    }
-    await _git(<String>['-C', seed, 'add', '--all'], environment);
-    await _git(<String>['-C', seed, 'commit', '--quiet', '-m', 'seed'], environment);
-    await _git(<String>['-C', seed, 'push', '--quiet', 'origin', 'HEAD:master'], environment);
-    await _git(<String>['clone', '--quiet', bare, clone], environment);
-    return _Origin._(bare, clone, environment);
-  }
-
-  /// The bare repository the clone pushes to.
-  final String bare;
-
-  /// The clone write_pin writes in.
-  final String clone;
-
-  /// The environment every git and the release's write_pin run under.
-  final Map<String, String> environment;
-
-  /// The commit origin's master stands on.
-  Future<String> head() => _git(<String>['-C', bare, 'rev-parse', 'master'], environment);
-
-  /// How many commits [range] holds on origin.
-  Future<int> count(String range) async =>
-      int.parse(await _git(<String>['-C', bare, 'rev-list', '--count', range], environment));
-
-  /// The files [commit] on origin changed, sorted.
-  Future<List<String>> changedIn(String commit) async => (await _git(<String>[
-    '-C',
-    bare,
-    'diff-tree',
-    '--no-commit-id',
-    '--name-only',
-    '-r',
-    commit,
-  ], environment)).split('\n')..sort();
-
-  /// [path] as [commit] on origin holds it.
-  Future<String> show(String commit, String path) =>
-      _git(<String>['-C', bare, 'show', '$commit:$path'], environment, trim: false);
-}
-
-/// Runs git, failing the test on a non-zero exit.
-Future<String> _git(
-  List<String> arguments,
-  Map<String, String> environment, {
-  bool trim = true,
-}) async {
-  final ProcessResult ran = await Process.run('git', arguments, environment: environment);
-  if (ran.exitCode != 0) {
-    fail('git ${arguments.join(' ')} exited ${ran.exitCode}: ${ran.stderr}');
-  }
-  return trim ? '${ran.stdout}'.trim() : '${ran.stdout}';
 }

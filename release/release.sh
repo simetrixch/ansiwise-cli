@@ -9,7 +9,7 @@
 # with release/build.sh, and pushes them as ONE manifest to Zot under the tag.
 # When that manifest is there this script reads the digests out of it and
 # writes the two pins downstream that make the new engine the one an
-# installation takes.
+# installation takes, and tags the commit of the programs pin with the same tag.
 #
 # WHY IT WAITS. A release that ends when the tag is pushed hands back a number
 # nobody has verified, and the pins downstream would then name an engine that may
@@ -293,6 +293,12 @@ write_pin "$PROGRAMS_REPO" "$WORK/programs" "$PROGRAMS_PIN" \
   "s|- ansiwise=[0-9]+\.[0-9]+\.[0-9]+-[a-z]+-[0-9]{14}|- ansiwise=$TAG|" \
   "release: stamp the ansiwise $VERSION $CHANNEL pin into deploy-cluster" "" "" \
   "$PROGRAMS_SOURCES" "$RELEASE_COMMIT"
+STANDING=" — the tag $TAG stands, ${PLATFORM_REPO} and ${PROGRAMS_REPO} are pinned, and no tag $TAG stands on ${PROGRAMS_REPO}"
 say "stamped ${PROGRAMS_REPO} ${PROGRAMS_PIN} and moved ${PROGRAMS_SOURCES} to $RELEASE_COMMIT"
+
+# tag_pin stands in release/write_pin.sh too. The tag is what lets `ai-core status-sync` see the
+# stamp as released: a repository with the pin and no tag keeps every card of it in testing.
+tag_pin "$PROGRAMS_REPO" "$WORK/programs"
+say "tagged ${PROGRAMS_REPO} with $TAG on the commit that carries the pin"
 
 say "DONE — $TAG is built, and every tree that names an engine names this one"

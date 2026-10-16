@@ -1,8 +1,9 @@
 # shellcheck shell=bash
-# release/write_pin.sh — write one pin downstream, sourced by release/release.sh.
+# release/write_pin.sh — write one pin downstream and tag the commit that carries it, sourced by
+# release/release.sh.
 #
-# A file of its own so a test can call it alone (test/checks/release_pin_test.dart); it reads TAG,
-# die and say from whoever sourced it.
+# A file of its own so a test can call it alone (test/checks/release_pin_test.dart and
+# test/checks/release_tag_test.dart); it reads TAG, die and say from whoever sourced it.
 
 # THE CLONE IS BROUGHT TO ORIGIN IMMEDIATELY BEFORE THE WRITE. Both trees were cloned before
 # anything was minted, because the push rights they answer for have to be known then, and the wait
@@ -66,4 +67,29 @@ write_pin() { # <repo> <clone> <file> <sed expression> <subject> [<file beside> 
     fi
   done
   die "the pin of ${repo} could not be pushed, so it is a pin only this machine believes"
+}
+
+# THE RELEASE'S TAG GOES ON THE COMMIT THAT CARRIES THE PIN, because `ai-core status-sync` counts a
+# commit of this repository as released only when a tag carries it, and a repository the release
+# stamped but never tagged leaves every card of it in `testing` for good. Called right after
+# write_pin, the head of <clone> is that commit: the stamp write_pin pushed, or the head that
+# already named this release where write_pin wrote nothing.
+#
+# READ BACK FROM ORIGIN, as release.sh does for its own tag: the clone already has the tag whatever
+# origin thinks, and a zero exit of the push is the weaker fact. A tag standing at the head already
+# is left alone, so a release run again over a stamp that landed passes; a tag standing at another
+# commit is refused, because moving a tag a machine may have fetched is not this script's to do.
+tag_pin() { # <repo> <clone>
+  local repo="$1" clone="$2" head standing
+  head="$(git -C "$clone" rev-parse HEAD)"
+  standing="$(git -C "$clone" ls-remote --tags origin "refs/tags/$TAG" | cut -f1)"
+  if [ -z "$standing" ]; then
+    git -C "$clone" tag "$TAG" || die "the tag $TAG could not be created in ${repo}"
+    git -C "$clone" push --quiet origin "$TAG" \
+      || die "the tag $TAG could not be pushed to ${repo}, so its pin carries no tag"
+    standing="$(git -C "$clone" ls-remote --tags origin "refs/tags/$TAG" | cut -f1)"
+    [ -n "$standing" ] || die "${repo} does not carry $TAG after the push, so its pin carries no tag"
+  fi
+  [ "$standing" = "$head" ] \
+    || die "${repo} carries $TAG at ${standing:0:12} and not at its pin ${head:0:12}, and a tag is not moved"
 }
