@@ -44,10 +44,12 @@ TAG="${1:-}"
 OUT="${2:-}"
 { [ $# -eq 2 ] && [ -n "$TAG" ] && [ -n "$OUT" ]; } \
   || die "usage: bash release/build.sh <tag> <out-dir>"
-# THE GRAMMAR release/release.sh mints and hostyour-manager reads: no leading zero in a number, a
-# channel of the three, and the fourteen digits of the UTC moment the tag was minted at.
-[[ "$TAG" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-(alpha|beta|stable)-[0-9]{14}$ ]] \
-  || die "'$TAG' is no release tag: a release tag is <x.y.z>-<alpha|beta|stable>-<14 digits>, with no leading zero"
+# THE GRAMMAR hostyour-manager mints and reads (RELEASE_TAG_RE in its shared/release.ts): no leading
+# zero in the major or the minor, a patch of exactly three digits (leading zeros included, 0.3.000) or
+# without a leading zero, a channel of the three, and the fourteen digits of the UTC moment the tag
+# was minted at.
+[[ "$TAG" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.([0-9]{3}|0|[1-9][0-9]*)-(alpha|beta|stable)-[0-9]{14}$ ]] \
+  || die "'$TAG' is no release tag: a release tag is <x.y.z>-<alpha|beta|stable>-<14 digits>, with no leading zero in x or y, and z of three digits or with no leading zero"
 
 # THE HOST BUILDS WHAT IT IS: `dart compile exe` compiles for the machine it runs on, and every
 # binary is named and fetched as linux-x64. Built anywhere else, a machine would be placed files it

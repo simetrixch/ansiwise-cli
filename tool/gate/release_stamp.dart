@@ -68,15 +68,15 @@ String stampFor(Map<String, String> environment) {
     throw ReleaseStampRefused('$releaseTagVariable holds a tag that is no release: $refusal');
   }
   // AND THE STAMP IS FOURTEEN DIGITS, which neither reader above says: ReleasedTag reads it as
-  // `[0-9]+`. The authority is
-  // hostyour-manager/shared/release.ts:22, `-([0-9]{14})$`, and a tag one digit short is a tag that
-  // repository refuses: a binary stamped with it would answer a version the platform cannot read.
+  // `[0-9]+`. The authority is `RELEASE_TAG_RE` of hostyour-manager/shared/release.ts,
+  // `-([0-9]{14})$`, and a tag one digit short is a tag that repository refuses: a binary stamped
+  // with it would answer a version the platform cannot read.
   if (ReleasedTag.read(stated)?.stamp.length != _stampDigits) {
     throw ReleaseStampRefused(
       '$releaseTagVariable is "$stated", whose stamp is not $_stampDigits digits. A release is '
-      'stamped yyyyMMddHHmmss in UTC, and hostyour-manager/shared/release.ts:22 reads exactly that '
-      'many — a tag a digit short is one the platform refuses, so a binary answering it would name '
-      'a release nothing downstream can read',
+      'stamped yyyyMMddHHmmss in UTC, and RELEASE_TAG_RE of hostyour-manager/shared/release.ts '
+      'reads exactly that many — a tag a digit short is one the platform refuses, so a binary '
+      'answering it would name a release nothing downstream can read',
     );
   }
   return stated;

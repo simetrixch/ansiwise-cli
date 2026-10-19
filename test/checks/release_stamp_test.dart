@@ -32,6 +32,20 @@ void main() {
       );
     });
 
+    test(
+      'takes a patch of three digits with leading zeros, the form every version line is written in',
+      () {
+        for (final String tag in const <String>[
+          '0.3.000-stable-20261019120000',
+          '1.0.017-beta-20261019120000',
+          '0.3.0-stable-20261019120000',
+          '0.1.16-alpha-20260821194500',
+        ]) {
+          expect(stampFor(<String, String>{releaseTagVariable: tag}), tag);
+        }
+      },
+    );
+
     test('is $unreleased where nothing states one', () {
       expect(stampFor(const <String, String>{}), unreleased);
     });
@@ -68,7 +82,16 @@ void main() {
       ('latest', 'a word that is not a version at all'),
       ('1.2.3', 'three numbers with no channel and no stamp'),
       ('0.1.0-alpha', 'a channel and no stamp'),
-      ('01.2.3-alpha-20260821194500', 'a leading zero, which the platform grammar forbids'),
+      (
+        '01.2.3-alpha-20260821194500',
+        'a leading zero in the major, which the platform grammar forbids',
+      ),
+      (
+        '1.02.3-alpha-20260821194500',
+        'a leading zero in the minor, which the platform grammar forbids',
+      ),
+      ('0.1.00-alpha-20260821194500', 'a patch of two digits with a leading zero'),
+      ('0.1.0000-alpha-20260821194500', 'a patch of four digits with leading zeros'),
       ('0.1.0-alpha-2026082119450', 'thirteen stamp digits, one short of fourteen'),
       ('0.1.0-alpha-202608211945000', 'fifteen stamp digits, one too many'),
     ]) {

@@ -28,8 +28,9 @@ import '../support/starts_ansiwise.dart';
 /// host a case plants. The parts and the commits they are cloned at are the ones pubspec.yaml
 /// names, read here with a pattern of this file's own rather than build.sh's.
 ///
-/// THE PLANTED INNOCENT is case (a): a linux-x64 host, the pinned Dart, green gates and a release
-/// tag, which must leave exactly `<binary>-<tag>-linux-x64` per binary. THE PLANTED DEFECTS are
+/// THE PLANTED INNOCENTS are case (a): a linux-x64 host, the pinned Dart, green gates and a release
+/// tag, which must leave exactly `<binary>-<tag>-linux-x64` per binary, and (a2): the same with a
+/// patch of three digits and leading zeros, which hostyour-manager mints. THE PLANTED DEFECTS are
 /// (b) another Dart, refused before anything is built; (c) tags outside the grammar, refused before
 /// any Dart is asked; (d) a binary answering another tag; (e) an output directory already holding a
 /// file; (f) a host that is not linux-x64, whose binaries would be named for a machine they cannot
@@ -86,6 +87,22 @@ void main() {
     timeout: realDart,
   );
 
+  test(
+    '(a2) innocent: a patch of three digits with leading zeros is a release tag, as hostyour-manager mints it',
+    () async {
+      const String zeroPadded = '0.3.000-stable-20261019120000';
+      final _Build build = await _Build.prepare(dart: dartVersion, binaries: binaries);
+
+      final ProcessResult ran = await build.run(zeroPadded);
+
+      expect(ran.exitCode, 0, reason: '${ran.stdout}${ran.stderr}');
+      expect(build.produced(), <String>[
+        for (final String binary in binaries) '$binary-$zeroPadded-linux-x64',
+      ]);
+    },
+    timeout: realDart,
+  );
+
   test('(b) defect: another Dart is refused before anything is built', () async {
     const String other = '2.19.6';
     final _Build build = await _Build.prepare(dart: other, binaries: binaries);
@@ -103,6 +120,9 @@ void main() {
     '0.8.312',
     'v0.8.312-alpha-20261014120000',
     '08.8.312-alpha-20261014120000',
+    '0.08.312-alpha-20261014120000',
+    '0.8.00-alpha-20261014120000',
+    '0.8.0312-alpha-20261014120000',
     '0.8.312-gamma-20261014120000',
     '0.8.312-alpha-2026101412000',
     '0.8.312-alpha-20261014120000x',
