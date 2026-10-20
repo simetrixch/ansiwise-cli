@@ -19,7 +19,7 @@
 # ansiwise-checks are cloned side by side at the commits pubspec.yaml names, and each runs its own
 # scripts/check.sh; then this repository runs tool/ci.dart. A part that is red stops the release
 # before a binary exists: the commits release/release.sh writes into pubspec.yaml are judged
-# together here, and never trusted because each part's own ci saw them green alone.
+# together here, and never trusted because each part's own check saw them green alone.
 #
 # WHAT IT LEAVES. In <out-dir> exactly one file per binary, named `<binary>-<tag>-linux-x64`, and
 # nothing else, because every file there becomes a layer of the release and a machine fetches each

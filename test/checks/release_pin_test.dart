@@ -5,10 +5,10 @@ import 'package:test/test.dart';
 import '../support/bare_origin.dart';
 import '../support/starts_ansiwise.dart';
 
-/// release-pin — the release stamps the programs pin and moves the CI's ansiwise-cli commit in ONE
+/// release-pin — the release stamps the programs pin and moves the check's ansiwise-cli commit in ONE
 /// commit.
 ///
-/// The programs repository's CI binds every program to the ansiwise-cli commit its ci-sources.json
+/// The programs repository's check binds every program to the ansiwise-cli commit its ci-sources.json
 /// names. A release that stamped the pin and left that commit behind sent the next push there to
 /// an older registry than the machines run, and a program using a new step went red.
 ///

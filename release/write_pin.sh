@@ -24,8 +24,8 @@
 # naming no issue by. A temporary clone runs no hook, so nothing judges these two commits where they
 # are written; the subject is what lets the same line be pushed from a configured checkout.
 #
-# THE PROGRAMS' CI MOVES WITH THEIR PIN. The programs repository's ci-sources.json pins ansiwise-cli
-# at a fixed commit, and the master's ci binds every program to that registry. Left behind, it binds
+# THE PROGRAMS' CHECK MOVES WITH THEIR PIN. The programs repository's ci-sources.json pins ansiwise-cli
+# at a fixed commit, and its check binds every program to that registry. Left behind, it binds
 # them to an older engine than the machines run, and a program using a new step goes red there. So
 # a <sources> file given here has the commit it pins ansiwise-cli at moved to <release commit> in
 # the same commit as the pin, and a file pinning no ansiwise-cli is refused as a missing pin is.
