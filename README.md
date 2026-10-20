@@ -46,10 +46,6 @@ release that lacks a digest for any binary release/build.sh builds is refused be
 `release/release.sh` is the operator's command and the only one that mints a release of this
 repository: the Manager does not call it.
 
-The ci of this repository is the master's Tekton pipeline `ansiwise-cli-ci` (hostyour-cloud
-`clusters/inventories/consumer-build/templates/pipeline-ci.yaml`). It installs the Dart that
-`ci-tools.json` names and runs `scripts/check.sh` on a push of the default branch or of a branch whose
-name starts with `ci/` (the Trigger `github-ci-push`, hostyour-cloud
-`clusters/inventories/image-builder/templates/triggers/github-ci-push.yaml`). Its runs are the
-PipelineRuns `ansiwise-cli-ci-*` in the namespace `ansiwise-cli-build`, and it sets the commit status
-`tekton/ci`.
+`scripts/check.sh` runs on the machine before every push: the push gate of the pre-push hook runs
+it, and a red check refuses the push. No ci runs it anywhere else.
+The build of a release installs the Dart that `ci-tools.json` names before it runs `release/build.sh`.
